@@ -7,7 +7,7 @@
 #include <memory.h>
 
 void generator::randomized_dfs(grid_t &grid, stack_t<state_t> &stack) {
-    state_t cstate, nstate;
+    state_t cstate = {};
     if (stack.is_empty()) {
         memset(grid.cells, WALL, grid.hcells * grid.vcells);
         cstate.x  = 0;
@@ -34,32 +34,32 @@ void generator::randomized_dfs(grid_t &grid, stack_t<state_t> &stack) {
     }
 
     bool next = false;
-
+    state_t nstate = {};
     switch (cstate.choice[cstate.at]) {
         case L:
             if (!(x == 0 || cell(x - 2, y) != WALL)) {
                 cell(x - 1, y) = PATH;
-                nstate = {0, x - 2, y}, next = true;
-            }
-            break;
+                nstate.x = x - 2, nstate.y = y;
+                next = true;
+            } break;
         case R:
             if (!(x > grid.hcells - 3 || cell(x + 2, y) != WALL)) {
                 cell(x + 1, y) = PATH;
-                nstate = {0, x + 2, y}, next = true;
-            }
-            break;
+                nstate.x = x + 2, nstate.y = y;
+                next = true;
+            } break;
         case B:
             if (!(y == 0 || cell(x, y - 2) != WALL)) {
                 cell(x, y - 1) = PATH;
-                nstate = {0, x, y - 2}, next = true;
-            }
-            break;
+                nstate.x = x, nstate.y = y - 2;
+                next = true;
+            } break;
         case T:
             if (!(y > grid.vcells - 3 || cell(x, y + 2) != WALL)) {
                 cell(x, y + 1) = PATH;
-                nstate = {0, x, y + 2}, next = true;
-            }
-            break;
+                nstate.x = x, nstate.y = y + 2;
+                next = true;
+            } break;
     }
 
     cstate.at ++;

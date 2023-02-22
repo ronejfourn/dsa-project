@@ -38,6 +38,8 @@ void grid_t::render() {
                 ren.fill(&cell_rect, 0x000000):
             (cells[i * hcells + j] == VISITED) ?
                 ren.fill(&cell_rect, 0x0000ff):
+            (cells[i * hcells + j] == CORRECT) ?
+                ren.fill(&cell_rect, 0x00ff00):
                 ren.fill(&cell_rect, 0xffffff);
         }
     }
