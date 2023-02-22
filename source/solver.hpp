@@ -1,9 +1,12 @@
 #pragma once
 
-struct grid_t;
-struct state_t;
-template <typename T> struct stack_t;
+struct Grid;
+struct State;
+template <typename T> struct Stack;
 
-namespace solver {
-    void dfs(grid_t &grid, stack_t<state_t> &stack);
+#define SOLVER_FUNC(name) void name(Grid &grid, Stack<State> &stack)
+
+namespace Solver {
+    typedef SOLVER_FUNC((*Func));
+    SOLVER_FUNC(DFS);
 }

@@ -1,6 +1,6 @@
 #pragma once
 
-namespace rng {
-    unsigned get();
-    void shuffle(int n, int *a);
+namespace RNG {
+    unsigned Get();
+    void Shuffle(int n, int *a);
 }

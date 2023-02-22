@@ -6,14 +6,15 @@
 
 #include <memory.h>
 
-void generator::randomized_dfs(grid_t &grid, stack_t<state_t> &stack) {
-    state_t cstate = {};
-    if (stack.is_empty()) {
+GENERATOR_FUNC(Generator::RandomizedDFS)
+{
+    State cstate = {};
+    if (stack.IsEmpty()) {
         memset(grid.cells, WALL, grid.hcells * grid.vcells);
         cstate.x  = 0;
         cstate.y  = 0;
         cstate.at = 0;
-    } else { cstate = stack.pop(); }
+    } else { cstate = stack.Pop(); }
 
     int x = cstate.x;
     int y = cstate.y;
@@ -29,12 +30,12 @@ void generator::randomized_dfs(grid_t &grid, stack_t<state_t> &stack) {
         cstate.choice[1] = R;
         cstate.choice[2] = B;
         cstate.choice[3] = T;
-        rng::shuffle(4, cstate.choice);
+        RNG::Shuffle(4, cstate.choice);
         cell(x, y) = PATH;
     }
 
     bool next = false;
-    state_t nstate = {};
+    State nstate = {};
     switch (cstate.choice[cstate.at]) {
         case L:
             if (!(x == 0 || cell(x - 2, y) != WALL)) {
@@ -63,6 +64,6 @@ void generator::randomized_dfs(grid_t &grid, stack_t<state_t> &stack) {
     }
 
     cstate.at ++;
-    stack.push(cstate);
-    if (next) stack.push(nstate);
+    stack.Push(cstate);
+    if (next) stack.Push(nstate);
 }

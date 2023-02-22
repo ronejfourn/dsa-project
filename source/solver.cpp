@@ -4,10 +4,10 @@
 #include "stack.hpp"
 #include "solver.hpp"
 
-void solver::dfs(grid_t &grid, stack_t<state_t> &stack) {
-    state_t cstate = {};
-    if (!stack.is_empty())
-        cstate = stack.pop();
+SOLVER_FUNC(Solver::DFS) {
+    State cstate = {};
+    if (!stack.IsEmpty())
+        cstate = stack.Pop();
 
     int x = cstate.x;
     int y = cstate.y;
@@ -21,10 +21,10 @@ void solver::dfs(grid_t &grid, stack_t<state_t> &stack) {
 
     if (cstate.finished || (x == grid.hcells - 1 && y == grid.vcells - 1)) {
         cell(x, y) = CORRECT;
-        if (!stack.is_empty()) {
-            auto s = stack.pop();
+        if (!stack.IsEmpty()) {
+            auto s = stack.Pop();
             s.finished = true;
-            stack.push(s);
+            stack.Push(s);
         }
         return;
     }
@@ -40,7 +40,7 @@ void solver::dfs(grid_t &grid, stack_t<state_t> &stack) {
     }
 
     bool next = false;
-    state_t nstate = {};
+    State nstate = {};
 
     switch (cstate.choice[cstate.at]) {
         case L:
@@ -70,6 +70,6 @@ void solver::dfs(grid_t &grid, stack_t<state_t> &stack) {
     }
 
     cstate.at ++;
-    stack.push(cstate);
-    if (next) stack.push(nstate);
+    stack.Push(cstate);
+    if (next) stack.Push(nstate);
 }

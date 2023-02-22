@@ -1,6 +1,6 @@
 #pragma once
 
-struct state_t {
+struct State {
     bool finished;
     int at;
     int x, y;

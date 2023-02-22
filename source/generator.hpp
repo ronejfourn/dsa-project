@@ -1,9 +1,12 @@
 #pragma once
 
-struct grid_t;
-struct state_t;
-template <typename T> struct stack_t;
+struct Grid;
+struct State;
+template <typename T> struct Stack;
 
-namespace generator {
-    void randomized_dfs(grid_t &grid, stack_t<state_t> &stack);
+#define GENERATOR_FUNC(name) void name(Grid &grid, Stack<State> &stack)
+
+namespace Generator {
+    typedef GENERATOR_FUNC((*Func));
+    GENERATOR_FUNC(RandomizedDFS);
 };

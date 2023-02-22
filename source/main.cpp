@@ -1,96 +1,142 @@
+#include "rng.hpp"
 #include "grid.hpp"
 #include "state.hpp"
 #include "stack.hpp"
 #include "solver.hpp"
 #include "generator.hpp"
+#include "application.hpp"
 
-#include <SDL2/SDL_events.h>
-
-int main() {
-    renderer_t &ren = renderer_t::instance();
-
-    grid_t grid(16, 16, 35, 35);
-    stack_t<state_t> stack;
-
-    bool on_grid = false;
-    int mx, my, gx, gy, sx, sy;
-
-    int steps_per_frame = 4;
-
-    int mode = -1;
-
-    SDL_Event event;
-    bool run = true;
-    while (run) {
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_QUIT) {
-                run = false;
-            } else if (event.type == SDL_WINDOWEVENT) {
-                if (event.window.event == SDL_WINDOWEVENT_RESIZED)
-                    grid.center(event.window.data1, event.window.data2);
-            } else if (event.type == SDL_MOUSEMOTION) {
-                mx = event.motion.x, my = event.motion.y;
-                on_grid = grid.screen_to_grid(mx, my, gx, gy);
-            } else if (event.type == SDL_MOUSEBUTTONDOWN) {
-                if (on_grid) {
-                    if (event.button.button == SDL_BUTTON_LEFT) {
-                        unsigned char &cell = grid.cells[gy * grid.hcells + gx];
-                        cell = cell == WALL ? PATH : WALL;
-                    }
-                }
-            } else if (event.type == SDL_KEYDOWN) {
-                if (event.key.keysym.sym == SDLK_RETURN && stack.is_empty()) {
-                    mode = 0;
-                    generator::randomized_dfs(grid, stack);
-                }
-            }
-        }
-
-        ren.clear(0x181818);
-
-        grid.render();
-
-        if (mode == 0) {
-            for (int i = 0; i < steps_per_frame && !stack.is_empty(); i ++) {
-                state_t s = stack.peek();
-                grid.cell_rect.x = grid.boundary.x + grid.border + s.x * grid.cell_rect.w;
-                grid.cell_rect.y = grid.boundary.y + grid.border + s.y * grid.cell_rect.h;
-                ren.fill(&grid.cell_rect, 0xff0000);
-                generator::randomized_dfs(grid, stack);
-            }
-        }
-
-        if (mode == 0 && stack.is_empty()) {
-            mode = 1;
-            solver::dfs(grid, stack);
-        }
-
-        if (mode == 1) {
-            for (int i = 0; i < steps_per_frame && !stack.is_empty(); i ++) {
-                state_t s = stack.peek();
-                grid.cell_rect.x = grid.boundary.x + grid.border + s.x * grid.cell_rect.w;
-                grid.cell_rect.y = grid.boundary.y + grid.border + s.y * grid.cell_rect.h;
-                ren.fill(&grid.cell_rect, 0xff0000);
-                solver::dfs(grid, stack);
-            }
-        }
-
-        if (on_grid) {
-            grid.grid_to_screen(gx, gy, sx, sy);
-            rect_t sel1 = {
-                sx, sy,
-                grid.cell_rect.w, grid.cell_rect.h,
-            };
-            rect_t sel2 = {
-                sel1.x + 1, sel1.y + 1,
-                sel1.w - 2, sel1.h - 2,
-            };
-            ren.draw(&sel1, 0xff0000);
-            ren.draw(&sel2, 0xff0000);
-        }
-
-        ren.update();
+class MazeApp : public BaseApplication
+{
+public:
+    MazeApp()
+    {
+        m_wConfig.title  = "Maze Generators & Solvers";
+        m_wConfig.width  = 1280;
+        m_wConfig.height = 720;
     }
 
+private:
+    enum {
+        Generating,
+        Solving,
+        Idle,
+    } m_state = Idle;
+
+    int m_stepsPerFrame = 4;
+    int m_gridScale = 16;
+
+    Stack<State> m_stack;
+    Generator::Func m_generateFunc = nullptr;
+    Solver::Func m_solveFunc = nullptr;
+    void (MazeApp::*m_updateFunc)() = &MazeApp::UpdateIdle;
+
+    Grid m_grid = Grid(45, 45);
+    SDL_Texture *m_gridTexture;
+
+    bool OnInit() override
+    {
+        m_gridTexture = SDL_CreateTexture(m_renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, m_grid.hcells, m_grid.vcells);
+        return m_gridTexture != NULL;
+    }
+
+    void OnUpdate() override
+    {
+        ImGui::Begin("Generators");
+        {
+            static auto GeneratorItem = [this](const char *n, Generator::Func f) {
+                if (ImGui::Button(n) && m_state == Idle) {
+                    m_state = Generating;
+                    m_generateFunc = f;
+                    m_updateFunc = &MazeApp::UpdateGenerating;
+                    f(m_grid, m_stack);
+                }
+            };
+
+            GeneratorItem("Randomized DFS", Generator::RandomizedDFS);
+        }
+        ImGui::End();
+
+        ImGui::Begin("Solvers");
+        {
+            static auto SolverItem = [this](const char *n, Solver::Func f) {
+                if (ImGui::Button(n) && m_state == Idle) {
+                    m_state = Solving;
+                    m_solveFunc = f;
+                    m_updateFunc = &MazeApp::UpdateSolving;
+                    f(m_grid, m_stack);
+                }
+            };
+
+            SolverItem("Depth First Search", Solver::DFS);
+        }
+        ImGui::End();
+
+        ImGui::Begin("Maze");
+        {
+            ImGui::Text("State: %s",
+                    m_state == Generating ? "Generating" :
+                    m_state == Solving    ? "Solving"    : "Idle");
+            ImGui::Image(m_gridTexture, ImVec2(m_grid.hcells * m_gridScale, m_grid.vcells * m_gridScale));
+        }
+        ImGui::End();
+
+        ImGui::Begin("Settings");
+        {
+            ImGui::DragInt("Steps per Frame", &m_stepsPerFrame, 1.0f, 1, 512);
+            ImGui::DragInt("Grid Scale", &m_gridScale, 2.0f, 2, 32);
+        }
+        ImGui::End();
+
+        (this->*m_updateFunc)();
+    }
+
+    void OnEvent(SDL_Event *event) override
+    {
+    }
+
+    void OnDestroy() override
+    {
+    }
+
+    void UpdateGenerating()
+    {
+        for (int i = 0; i < m_stepsPerFrame && !m_stack.IsEmpty(); i ++)
+            m_generateFunc(m_grid, m_stack);
+        if (m_stack.IsEmpty()) {
+            m_state = Idle;
+            m_updateFunc = &MazeApp::UpdateIdle;
+        }
+
+        SDL_SetRenderTarget(m_renderer, m_gridTexture);
+        m_grid.Render(m_renderer);
+        SDL_SetRenderTarget(m_renderer, nullptr);
+    }
+
+    void UpdateSolving()
+    {
+        for (int i = 0; i < m_stepsPerFrame && !m_stack.IsEmpty(); i ++)
+            m_solveFunc(m_grid, m_stack);
+        if (m_stack.IsEmpty()) {
+            m_state = Idle;
+            m_updateFunc = &MazeApp::UpdateIdle;
+        }
+
+        SDL_SetRenderTarget(m_renderer, m_gridTexture);
+        m_grid.Render(m_renderer);
+        SDL_SetRenderTarget(m_renderer, nullptr);
+    }
+
+    void UpdateIdle()
+    {
+    }
+};
+
+int main()
+{
+    MazeApp app;
+    if (app.Init())
+        app.Run();
+    app.Destroy();
     return 0;
 }

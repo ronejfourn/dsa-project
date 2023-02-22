@@ -17,18 +17,18 @@ uint32_t pcg32_random_r(pcg32_random_t* rng)
     return (xorshifted >> rot) | (xorshifted << ((-rot) & 31));
 }
 
-namespace rng {
+namespace RNG {
     static pcg32_random_t rng = {123456789, 987654321};
 }
 
-unsigned rng::get() {
+unsigned RNG::Get() {
     return pcg32_random_r(&rng);
 }
 
-void rng::shuffle(int n, int *a) {
+void RNG::Shuffle(int n, int *a) {
     int temp;
     for (int i = n - 1; i > 1; i --) {
-        int r = rng::get() % i;
+        int r = RNG::Get() % i;
         temp = a[i];
         a[i] = a[r];
         a[r] = temp;
