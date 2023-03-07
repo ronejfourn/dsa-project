@@ -25,6 +25,11 @@ unsigned RNG::Get() {
     return pcg32_random_r(&rng);
 }
 
+unsigned RNG::Get(unsigned l, unsigned h) {
+    if (l > h) {auto t = l; l = h; h = t;}
+    return l + pcg32_random_r(&rng) % (h - l + 1);
+}
+
 void RNG::Shuffle(int n, int *a) {
     int temp;
     for (int i = n - 1; i > 1; i --) {

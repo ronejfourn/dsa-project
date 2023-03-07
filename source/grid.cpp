@@ -5,6 +5,8 @@
 
 Grid::Grid(int h, int v) {
     hcells = h, vcells = v;
+    active.x = -1;
+    active.y = -1;
     cells = new unsigned char[hcells * vcells];
     memset(cells, 0, hcells * vcells);
 }
@@ -24,5 +26,10 @@ void Grid::Render(SDL_Renderer *r) {
             }
             SDL_RenderDrawPoint(r, x, y);
         }
+    }
+
+    if (active.x >= 0 && active.x < hcells && active.y >= 0 && active.y < vcells) {
+        SDL_SetRenderDrawColor(r, 0xff, 0x00, 0x00, 0x00);
+        SDL_RenderDrawPoint(r, active.x, active.y);
     }
 }

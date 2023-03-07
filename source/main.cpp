@@ -1,6 +1,5 @@
 #include "rng.hpp"
 #include "grid.hpp"
-#include "state.hpp"
 #include "stack.hpp"
 #include "solver.hpp"
 #include "generator.hpp"
@@ -26,9 +25,16 @@ private:
     int m_stepsPerFrame = 4;
     int m_gridScale = 16;
 
-    Stack<State> m_stack;
-    Generator::Func m_generateFunc = nullptr;
-    Solver::Func m_solveFunc = nullptr;
+    struct {
+        Stack<Generator::State> stack;
+        Generator::Func func = nullptr;
+    } m_generator;
+
+    struct {
+        Stack<Solver::State> stack;
+        Solver::Func func = nullptr;
+    } m_solver;
+
     void (MazeApp::*m_updateFunc)() = &MazeApp::UpdateIdle;
 
     Grid m_grid = Grid(45, 45);
@@ -45,26 +51,29 @@ private:
         ImGui::Begin("Generators");
         {
             static auto GeneratorItem = [this](const char *n, Generator::Func f) {
-                if (ImGui::Button(n) && m_state == Idle) {
+                if (ImGui::Button(n, ImVec2(ImGui::GetContentRegionAvail().x, 0)) && m_state == Idle) {
                     m_state = Generating;
-                    m_generateFunc = f;
                     m_updateFunc = &MazeApp::UpdateGenerating;
-                    f(m_grid, m_stack);
+
+                    m_generator.func = f;
+                    m_generator.func(m_grid, m_generator.stack);
                 }
             };
 
             GeneratorItem("Randomized DFS", Generator::RandomizedDFS);
+            GeneratorItem("Recursive Division", Generator::RecursiveDivision);
         }
         ImGui::End();
 
         ImGui::Begin("Solvers");
         {
             static auto SolverItem = [this](const char *n, Solver::Func f) {
-                if (ImGui::Button(n) && m_state == Idle) {
+                if (ImGui::Button(n, ImVec2(ImGui::GetContentRegionAvail().x, 0)) && m_state == Idle) {
                     m_state = Solving;
-                    m_solveFunc = f;
                     m_updateFunc = &MazeApp::UpdateSolving;
-                    f(m_grid, m_stack);
+
+                    m_solver.func = f;
+                    m_solver.func(m_grid, m_solver.stack);
                 }
             };
 
@@ -77,7 +86,14 @@ private:
             ImGui::Text("State: %s",
                     m_state == Generating ? "Generating" :
                     m_state == Solving    ? "Solving"    : "Idle");
-            ImGui::Image(m_gridTexture, ImVec2(m_grid.hcells * m_gridScale, m_grid.vcells * m_gridScale));
+
+            ImVec2 dim = ImVec2(m_grid.hcells * m_gridScale, m_grid.vcells * m_gridScale);
+            ImVec2 pos = {
+                (ImGui::GetWindowSize().x - dim.x) * 0.5f,
+                (ImGui::GetWindowSize().y - dim.y) * 0.5f,
+            };
+            ImGui::SetCursorPos(pos);
+            ImGui::Image(m_gridTexture, dim);
         }
         ImGui::End();
 
@@ -101,9 +117,10 @@ private:
 
     void UpdateGenerating()
     {
-        for (int i = 0; i < m_stepsPerFrame && !m_stack.IsEmpty(); i ++)
-            m_generateFunc(m_grid, m_stack);
-        if (m_stack.IsEmpty()) {
+        for (int i = 0; i < m_stepsPerFrame && !m_generator.stack.IsEmpty(); i ++)
+            m_generator.func(m_grid, m_generator.stack);
+
+        if (m_generator.stack.IsEmpty()) {
             m_state = Idle;
             m_updateFunc = &MazeApp::UpdateIdle;
         }
@@ -115,9 +132,10 @@ private:
 
     void UpdateSolving()
     {
-        for (int i = 0; i < m_stepsPerFrame && !m_stack.IsEmpty(); i ++)
-            m_solveFunc(m_grid, m_stack);
-        if (m_stack.IsEmpty()) {
+        for (int i = 0; i < m_stepsPerFrame && !m_solver.stack.IsEmpty(); i ++)
+            m_solver.func(m_grid, m_solver.stack);
+
+        if (m_solver.stack.IsEmpty()) {
             m_state = Idle;
             m_updateFunc = &MazeApp::UpdateIdle;
         }
