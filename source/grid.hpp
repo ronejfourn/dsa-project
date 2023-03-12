@@ -10,12 +10,12 @@ enum CellState{
 struct SDL_Renderer;
 
 struct Grid {
-    int hcells;
-    int vcells;
+    unsigned hcells;
+    unsigned vcells;
     unsigned char *cells;
     struct {int x, y;} active;
 
-     Grid(int h, int v);
+     Grid(unsigned h, unsigned v);
     ~Grid();
 
     void Render(SDL_Renderer *);

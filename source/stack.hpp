@@ -1,5 +1,7 @@
 #pragma once
 
+#include <assert.h>
+
 template <typename T>
 class Stack {
 public:
@@ -8,21 +10,23 @@ public:
 
     void Push(const T &s) {
         Node *n = new Node();
-        n->state = s;
+        n->data = s;
         n->next = top;
         top = n;
     }
 
     T Pop() {
+        assert(top != nullptr);
         Node *tmp = top;
-        T r = top->state;
+        T r = top->data;
         top = top->next;
         delete tmp;
         return r;
     }
 
-    T Peek() {
-        return top->state;
+    T &Peek() {
+        assert(top != nullptr);
+        return top->data;
     }
 
     bool IsEmpty() {
@@ -36,7 +40,7 @@ public:
 
 private:
     struct Node {
-        T state;
+        T data;
         Node *next;
     };
     Node *top;

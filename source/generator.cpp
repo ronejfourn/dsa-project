@@ -134,3 +134,70 @@ GENERATOR_FUNC(Generator::RecursiveDivision)
         }
     }
 }
+
+GENERATOR_FUNC(Generator::RandomizedKruskal)
+{
+    auto hhcells = grid.hcells >> 1;
+    auto hvcells = grid.vcells >> 1;
+    auto nverts  = ((hhcells + 1) * (hvcells + 1));
+    auto nedges  = (hvcells * hhcells * 2) + hhcells + hvcells;
+
+    if (stack.IsEmpty()) {
+        State s; Edge e;
+        memset(grid.cells, WALL, grid.hcells * grid.vcells);
+        s.krs.at = 0;
+        s.krs.edges = new Edge[nedges];
+        s.krs.verts = new Vert[nverts];
+
+        unsigned i = 0;
+        for (int x = 0; x < grid.hcells - 2; x += 2) {
+            e.x0 = x, e.x1 = x + 2;
+            for (int y = 0; y < grid.vcells; y += 2) {
+                e.y0 = e.y1 = y;
+                s.krs.edges[i++] = e;
+            }
+        }
+
+        for (int y = 0; y < grid.vcells - 2; y += 2) {
+            e.y0 = y, e.y1 = y + 2;
+            for (int x = 0; x < grid.hcells; x += 2) {
+                e.x0 = e.x1 = x;
+                s.krs.edges[i++] = e;
+            }
+        }
+
+        for (unsigned i = 0; i < nverts; i ++)
+            s.krs.verts[i].forest = i;
+
+        RNG::Shuffle(nedges, s.krs.edges);
+        stack.Push(s);
+    }
+
+    auto &s = stack.Peek();
+    if (s.krs.at >= nedges) {
+        delete [] s.krs.edges;
+        delete [] s.krs.verts;
+        stack.Pop();
+        return;
+    }
+
+    auto cell = [&grid](int x, int y) -> unsigned char& {
+        return grid.cells[y * grid.hcells + x];
+    };
+
+    auto e  = s.krs.edges[s.krs.at ++];
+    auto v0 = (e.y0 / 2) * (hhcells + 1) + (e.x0 / 2);
+    auto v1 = (e.y1 / 2) * (hhcells + 1) + (e.x1 / 2);
+    auto f0 = s.krs.verts[v0].forest;
+    auto f1 = s.krs.verts[v1].forest;
+
+    if (f0 != f1) {
+        for (unsigned i = 0; i < nverts; i++)
+            if (s.krs.verts[i].forest == f1)
+                s.krs.verts[i].forest = f0;
+
+        cell(e.x0, e.y0) = PATH;
+        cell(e.x1, e.y1) = PATH;
+        cell(e.x0 + (e.x1 - e.x0) / 2, e.y0 + (e.y1 - e.y0) / 2) = PATH;
+    }
+}

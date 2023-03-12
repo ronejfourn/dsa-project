@@ -62,6 +62,7 @@ private:
 
             GeneratorItem("Randomized DFS", Generator::RandomizedDFS);
             GeneratorItem("Recursive Division", Generator::RecursiveDivision);
+            GeneratorItem("Randomized Kruskal", Generator::RandomizedKruskal);
         }
         ImGui::End();
 

@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <memory.h>
 
-Grid::Grid(int h, int v) {
+Grid::Grid(unsigned h, unsigned v) {
     hcells = h, vcells = v;
     active.x = -1;
     active.y = -1;
