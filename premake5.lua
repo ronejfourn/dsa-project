@@ -37,6 +37,14 @@ project "mgs"
   }
   includedirs { "./extern/imgui", "./extern/imgui_impl_sdl2" }
 
-  links { "SDL2", "SDL2main" }
+  filter "not system:windows"
+    links { "SDL2", "SDL2main" }
+
+  filter "system:windows"
+    includedirs { "./extern/SDL2-2.26.1/" }
+    libdirs { "./extern/SDL2-2.26.1/lib/x64" }
+    links { "SDL2.lib", "SDL2main.lib" }
+    prebuildcommands { "pushd ..\\extern && .\\get_sdl2.bat && popd" }
+    postbuildcommands { "copy ..\\extern\\SDL2-2.26.1\\lib\\x64\\SDL2.dll .\\%{cfg.buildcfg}\\" }
 
   filter {}

@@ -151,7 +151,7 @@ private:
     }
 };
 
-int main()
+int main(int argc, char **argv)
 {
     MazeApp app;
     if (app.Init())
