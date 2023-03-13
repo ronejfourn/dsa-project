@@ -1,14 +1,27 @@
 #include "grid.hpp"
+
+#include <assert.h>
 #include <SDL2/SDL_render.h>
-#include <stdlib.h>
-#include <memory.h>
+
+unsigned &Grid::operator() (int x, int y) {
+    assert(x >= 0 && y >= 0 && x < hcells && y < vcells);
+    return cells[y * hcells + x];
+};
+
+void Grid::Fill(unsigned v) {
+    for (unsigned i = 0; i < hcells * vcells; i ++)
+        cells[i] = v;
+}
+
+void Grid::ClearPaths() {
+    for (unsigned i = 0; i < hcells * vcells; i ++)
+        cells[i] = cells[i] == WALL ? WALL : PATH;
+}
 
 Grid::Grid(unsigned h, unsigned v) {
     hcells = h, vcells = v;
-    active.x = -1;
-    active.y = -1;
-    cells = new unsigned char[hcells * vcells];
-    memset(cells, 0, hcells * vcells);
+    cells = new unsigned[hcells * vcells];
+    Fill(PATH);
 }
 
 Grid::~Grid() {
@@ -26,10 +39,5 @@ void Grid::Render(SDL_Renderer *r) {
             }
             SDL_RenderDrawPoint(r, x, y);
         }
-    }
-
-    if (active.x >= 0 && active.x < hcells && active.y >= 0 && active.y < vcells) {
-        SDL_SetRenderDrawColor(r, 0xff, 0x00, 0x00, 0x00);
-        SDL_RenderDrawPoint(r, active.x, active.y);
     }
 }

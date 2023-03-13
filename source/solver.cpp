@@ -7,31 +7,31 @@ SOLVER_FUNC(Solver::DFS) {
     State cstate = {};
     if (!stack.IsEmpty())
         cstate = stack.Pop();
+    else
+        grid.ClearPaths();
 
-    int x = grid.active.x = cstate.x;
-    int y = grid.active.y = cstate.y;
+    int x = cstate.x;
+    int y = cstate.y;
 
-    unsigned char wall = WALL;
-    auto cell = [&grid, &wall](int x, int y) -> unsigned char& {
+    unsigned wall = WALL;
+    auto cell = [&grid, &wall](int x, int y) -> unsigned& {
         if (x >= 0 && x <= grid.hcells - 1 && y >= 0 && y <= grid.vcells - 1)
-            return grid.cells[y * grid.hcells + x];
+            return grid(x, y);
         return wall;
     };
 
     if (cstate.finished || (x == grid.hcells - 1 && y == grid.vcells - 1)) {
-        cell(x, y) = CORRECT;
-        if (!stack.IsEmpty()) {
-            auto s = stack.Pop();
-            s.finished = true;
-            stack.Push(s);
-        }
+        cell(x, y) = 0xff;
+        if (!stack.IsEmpty())
+            stack.Peek().finished = true;
         return;
     }
 
     if (cstate.at == 4) {
+        cell(x, y) = 0x77;
         return;
     } else if (cstate.at == 0) {
-        cell(x, y) = VISITED;
+        cell(x, y) = 0x33;
     }
 
     bool next = false;
@@ -39,25 +39,25 @@ SOLVER_FUNC(Solver::DFS) {
 
     switch (cstate.at) {
         case L:
-            if (cell(x - 1, y) != WALL && cell(x - 1, y) != VISITED) {
+            if (cell(x - 1, y) == PATH) {
                 nstate.x = x - 1;
                 nstate.y = y;
                 next = true;
             } break;
         case R:
-            if (cell(x + 1, y) != WALL && cell(x + 1, y) != VISITED) {
+            if (cell(x + 1, y) == PATH) {
                 nstate.x = x + 1;
                 nstate.y = y;
                 next = true;
             } break;
         case B:
-            if (cell(x, y - 1) != WALL && cell(x, y - 1) != VISITED) {
+            if (cell(x, y - 1) == PATH) {
                 nstate.x = x;
                 nstate.y = y - 1;
                 next = true;
             } break;
         case T:
-            if (cell(x, y + 1) != WALL && cell(x, y + 1) != VISITED) {
+            if (cell(x, y + 1) == PATH) {
                 nstate.x = x;
                 nstate.y = y + 1;
                 next = true;

@@ -12,11 +12,13 @@ struct SDL_Renderer;
 struct Grid {
     unsigned hcells;
     unsigned vcells;
-    unsigned char *cells;
-    struct {int x, y;} active;
+    unsigned *cells;
 
      Grid(unsigned h, unsigned v);
     ~Grid();
 
     void Render(SDL_Renderer *);
+    void Fill(unsigned);
+    void ClearPaths();
+    unsigned &operator() (int x, int y);
 };
