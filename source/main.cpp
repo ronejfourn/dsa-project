@@ -43,7 +43,10 @@ private:
     bool OnInit() override
     {
         m_gridTexture = SDL_CreateTexture(m_renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, m_grid.hcells, m_grid.vcells);
-        return m_gridTexture != NULL;
+        bool ok = m_gridTexture != NULL;
+        if (ok) RenderMaze();
+
+        return ok;
     }
 
     void OnUpdate() override
@@ -64,6 +67,7 @@ private:
             GeneratorItem("Randomized DFS"    , InitRandomizedDFS    , StepRandomizedDFS    );
             GeneratorItem("Recursive Division", InitRecursiveDivision, StepRecursiveDivision);
             GeneratorItem("Randomized Kruskal", InitRandomizedKruskal, StepRandomizedKruskal);
+            GeneratorItem("Randomized Prim"   , InitRandomizedPrim   , StepRandomizedPrim   );
         }
         ImGui::End();
 
@@ -119,6 +123,13 @@ private:
     {
     }
 
+    void RenderMaze()
+    {
+        SDL_SetRenderTarget(m_renderer, m_gridTexture);
+        m_grid.Render(m_renderer);
+        SDL_SetRenderTarget(m_renderer, nullptr);
+    }
+
     void UpdateGenerating()
     {
         for (int i = 0; i < m_stepsPerFrame && !m_generator.stack.IsEmpty(); i ++)
@@ -129,9 +140,7 @@ private:
             m_updateFunc = &MazeApp::UpdateIdle;
         }
 
-        SDL_SetRenderTarget(m_renderer, m_gridTexture);
-        m_grid.Render(m_renderer);
-        SDL_SetRenderTarget(m_renderer, nullptr);
+        RenderMaze();
     }
 
     void UpdateSolving()
@@ -144,9 +153,7 @@ private:
             m_updateFunc = &MazeApp::UpdateIdle;
         }
 
-        SDL_SetRenderTarget(m_renderer, m_gridTexture);
-        m_grid.Render(m_renderer);
-        SDL_SetRenderTarget(m_renderer, nullptr);
+        RenderMaze();
     }
 
     void UpdateIdle()

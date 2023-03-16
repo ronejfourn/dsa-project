@@ -145,7 +145,7 @@ GENERATOR_INIT_FUNC(Generator::InitRandomizedKruskal)
 
     s.krs.at = 0;
     s.krs.edges = new Edge[s.krs.nedges];
-    s.krs.verts = new Vert[s.krs.nverts];
+    s.krs.vertForest = new unsigned[s.krs.nverts];
 
     unsigned i = 0;
     for (int x = 0; x < grid.hcells - 2; x += 2) {
@@ -165,7 +165,7 @@ GENERATOR_INIT_FUNC(Generator::InitRandomizedKruskal)
     }
 
     for (unsigned i = 0; i < s.krs.nverts; i ++)
-        s.krs.verts[i].forest = i;
+        s.krs.vertForest[i] = i;
 
     RNG::Shuffle(s.krs.nedges, s.krs.edges);
     stack.Push(s);
@@ -176,7 +176,7 @@ GENERATOR_STEP_FUNC(Generator::StepRandomizedKruskal)
     auto &s = stack.Peek();
     if (s.krs.at >= s.krs.nedges) {
         delete [] s.krs.edges;
-        delete [] s.krs.verts;
+        delete [] s.krs.vertForest;
         stack.Pop();
         return;
     }
@@ -184,16 +184,71 @@ GENERATOR_STEP_FUNC(Generator::StepRandomizedKruskal)
     auto e  = s.krs.edges[s.krs.at ++];
     auto v0 = (e.y0 / 2) * (s.krs.hhcells + 1) + (e.x0 / 2);
     auto v1 = (e.y1 / 2) * (s.krs.hhcells + 1) + (e.x1 / 2);
-    auto f0 = s.krs.verts[v0].forest;
-    auto f1 = s.krs.verts[v1].forest;
+    auto f0 = s.krs.vertForest[v0];
+    auto f1 = s.krs.vertForest[v1];
 
     if (f0 != f1) {
         for (unsigned i = 0; i < s.krs.nverts; i++)
-            if (s.krs.verts[i].forest == f1)
-                s.krs.verts[i].forest = f0;
+            if (s.krs.vertForest[i] == f1)
+                s.krs.vertForest[i] = f0;
 
         grid(e.x0, e.y0) = PATH;
         grid(e.x1, e.y1) = PATH;
         grid(e.x0 + (e.x1 - e.x0) / 2, e.y0 + (e.y1 - e.y0) / 2) = PATH;
     }
+}
+
+GENERATOR_INIT_FUNC(Generator::InitRandomizedPrim)
+{
+    State s;
+    Edge e;
+    grid.Fill(WALL);
+
+    auto hhcells = grid.hcells >> 1;
+    auto hvcells = grid.vcells >> 1;
+    s.prm.availableEdges = 0;
+    s.prm.edges = new Edge[hvcells * hhcells * 2 + hhcells + hvcells];
+
+    grid(0, 0) = PATH;
+    s.prm.availableEdges = 2;
+    s.prm.edges[0] = {0, 0, 2, 0};
+    s.prm.edges[1] = {0, 0, 0, 2};
+
+    stack.Push(s);
+}
+
+GENERATOR_STEP_FUNC(Generator::StepRandomizedPrim)
+{
+    auto &s = stack.Peek();
+    if (s.prm.availableEdges == 0) {
+        delete [] s.prm.edges;
+        stack.Pop();
+        return;
+    }
+
+    auto i = RNG::Get() % (s.prm.availableEdges --);
+    auto e = s.prm.edges[i];
+    s.prm.edges[i] = s.prm.edges[s.prm.availableEdges];
+
+    if (grid(e.x1, e.y1) == PATH)
+        return;
+
+    auto xm = e.x0 + (e.x1 - e.x0) / 2, ym = e.y0 + (e.y1 - e.y0) / 2;
+
+    grid(e.x1, e.y1) = PATH;
+    grid(xm, ym) = PATH;
+
+    auto addEdge = [&grid, &s, &e](int dx, int dy) {
+        auto x2 = e.x1 + dx;
+        auto y2 = e.y1 + dy;
+        if (x2 < grid.hcells && x2 >= 0 && y2 < grid.vcells && y2 >= 0) {
+            Edge n = { e.x1, e.y1, x2, y2 };
+            s.prm.edges[s.prm.availableEdges ++] = n;
+        }
+    };
+
+    addEdge( 0,  2);
+    addEdge( 0, -2);
+    addEdge( 2,  0);
+    addEdge(-2,  0);
 }

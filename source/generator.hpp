@@ -10,8 +10,7 @@ namespace Generator {
 
     enum {L, R, B, T};
 
-    struct Edge { unsigned x0, y0, x1, y1; };
-    struct Vert { unsigned forest; };
+    struct Edge { int x0, y0, x1, y1; };
     union State {
         struct {
             int x, y;
@@ -27,20 +26,27 @@ namespace Generator {
 
         struct {
             Edge *edges;
-            Vert *verts;
+            unsigned *vertForest;
             unsigned at;
             unsigned hhcells, hvcells;
             unsigned nverts, nedges;
         } krs;
+
+        struct {
+            Edge *edges;
+            unsigned availableEdges;
+        } prm;
     };
 
     typedef GENERATOR_INIT_FUNC((*InitFunc));
     GENERATOR_INIT_FUNC(InitRandomizedDFS);
     GENERATOR_INIT_FUNC(InitRecursiveDivision);
     GENERATOR_INIT_FUNC(InitRandomizedKruskal);
+    GENERATOR_INIT_FUNC(InitRandomizedPrim);
 
     typedef GENERATOR_STEP_FUNC((*StepFunc));
     GENERATOR_STEP_FUNC(StepRandomizedDFS);
     GENERATOR_STEP_FUNC(StepRecursiveDivision);
     GENERATOR_STEP_FUNC(StepRandomizedKruskal);
+    GENERATOR_STEP_FUNC(StepRandomizedPrim);
 };
