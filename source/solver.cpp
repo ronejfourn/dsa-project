@@ -3,15 +3,18 @@
 #include "stack.hpp"
 #include "solver.hpp"
 
-SOLVER_FUNC(Solver::DFS) {
-    State cstate = {};
-    if (!stack.IsEmpty())
-        cstate = stack.Pop();
-    else
-        grid.ClearPaths();
+SOLVER_INIT_FUNC(Solver::InitDFS)
+{
+    grid.ClearPaths();
+    State s = {};
+    stack.Push(s);
+}
 
-    int x = cstate.x;
-    int y = cstate.y;
+SOLVER_STEP_FUNC(Solver::StepDFS)
+{
+    State cstate = stack.Pop();
+    auto x = cstate.x;
+    auto y = cstate.y;
 
     unsigned wall = WALL;
     auto cell = [&grid, &wall](int x, int y) -> unsigned& {

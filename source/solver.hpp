@@ -3,7 +3,8 @@
 struct Grid;
 template <typename T> struct Stack;
 
-#define SOLVER_FUNC(name) void name(Grid &grid, Stack<Solver::State> &stack)
+#define SOLVER_INIT_FUNC(name) void name(Grid &grid, Stack<Solver::State> &stack)
+#define SOLVER_STEP_FUNC(name) void name(Grid &grid, Stack<Solver::State> &stack)
 
 namespace Solver {
 
@@ -14,6 +15,9 @@ namespace Solver {
         bool finished;
     };
 
-    typedef SOLVER_FUNC((*Func));
-    SOLVER_FUNC(DFS);
+    typedef SOLVER_INIT_FUNC((*InitFunc));
+    SOLVER_INIT_FUNC(InitDFS);
+
+    typedef SOLVER_STEP_FUNC((*StepFunc));
+    SOLVER_STEP_FUNC(StepDFS);
 }

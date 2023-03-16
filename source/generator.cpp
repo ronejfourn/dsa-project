@@ -6,16 +6,19 @@
 #include <memory.h>
 #include <assert.h>
 
-GENERATOR_FUNC(Generator::RandomizedDFS)
+GENERATOR_INIT_FUNC(Generator::InitRandomizedDFS)
 {
-    State popped = {};
-    if (stack.IsEmpty()) {
-        grid.Fill(WALL);
-        popped.dfs.x  = 0;
-        popped.dfs.y  = 0;
-        popped.dfs.at = 0;
-    } else { popped = stack.Pop(); }
+    grid.Fill(WALL);
+    State s;
+    s.dfs.x  = 0;
+    s.dfs.y  = 0;
+    s.dfs.at = 0;
+    stack.Push(s);
+}
 
+GENERATOR_STEP_FUNC(Generator::StepRandomizedDFS)
+{
+    State popped = stack.Pop();
     auto &cstate = popped.dfs;
     int x = cstate.x;
     int y = cstate.y;
@@ -66,18 +69,21 @@ GENERATOR_FUNC(Generator::RandomizedDFS)
     if (next) stack.Push({nstate});
 }
 
-GENERATOR_FUNC(Generator::RecursiveDivision)
+GENERATOR_INIT_FUNC(Generator::InitRecursiveDivision)
 {
-    State popped = {};
-    if (stack.IsEmpty()) {
-        grid.Fill(PATH);
-        popped.div.x = 0;
-        popped.div.y = 0;
-        popped.div.w = grid.hcells - 1;
-        popped.div.h = grid.vcells - 1;
-        popped.div.vertical = RNG::Get() & 1;
-    } else { popped = stack.Pop(); }
+    grid.Fill(PATH);
+    State s;
+    s.div.x = 0;
+    s.div.y = 0;
+    s.div.w = grid.hcells - 1;
+    s.div.h = grid.vcells - 1;
+    s.div.vertical = RNG::Get() & 1;
+    stack.Push(s);
+}
 
+GENERATOR_STEP_FUNC(Generator::StepRecursiveDivision)
+{
+    State popped = stack.Pop();
     auto &cstate = popped.div;
     int x = cstate.x;
     int y = cstate.y;
@@ -126,46 +132,49 @@ GENERATOR_FUNC(Generator::RecursiveDivision)
     }
 }
 
-GENERATOR_FUNC(Generator::RandomizedKruskal)
+GENERATOR_INIT_FUNC(Generator::InitRandomizedKruskal)
 {
-    auto hhcells = grid.hcells >> 1;
-    auto hvcells = grid.vcells >> 1;
-    auto nverts  = ((hhcells + 1) * (hvcells + 1));
-    auto nedges  = (hvcells * hhcells * 2) + hhcells + hvcells;
+    State s;
+    Edge e;
+    grid.Fill(WALL);
 
-    if (stack.IsEmpty()) {
-        State s; Edge e;
-        grid.Fill(WALL);
-        s.krs.at = 0;
-        s.krs.edges = new Edge[nedges];
-        s.krs.verts = new Vert[nverts];
+    s.krs.hhcells = grid.hcells >> 1;
+    s.krs.hvcells = grid.vcells >> 1;
+    s.krs.nverts  = ((s.krs.hhcells + 1) * (s.krs.hvcells + 1));
+    s.krs.nedges  = (s.krs.hvcells * s.krs.hhcells * 2) + s.krs.hhcells + s.krs.hvcells;
 
-        unsigned i = 0;
-        for (int x = 0; x < grid.hcells - 2; x += 2) {
-            e.x0 = x, e.x1 = x + 2;
-            for (int y = 0; y < grid.vcells; y += 2) {
-                e.y0 = e.y1 = y;
-                s.krs.edges[i++] = e;
-            }
+    s.krs.at = 0;
+    s.krs.edges = new Edge[s.krs.nedges];
+    s.krs.verts = new Vert[s.krs.nverts];
+
+    unsigned i = 0;
+    for (int x = 0; x < grid.hcells - 2; x += 2) {
+        e.x0 = x, e.x1 = x + 2;
+        for (int y = 0; y < grid.vcells; y += 2) {
+            e.y0 = e.y1 = y;
+            s.krs.edges[i++] = e;
         }
-
-        for (int y = 0; y < grid.vcells - 2; y += 2) {
-            e.y0 = y, e.y1 = y + 2;
-            for (int x = 0; x < grid.hcells; x += 2) {
-                e.x0 = e.x1 = x;
-                s.krs.edges[i++] = e;
-            }
-        }
-
-        for (unsigned i = 0; i < nverts; i ++)
-            s.krs.verts[i].forest = i;
-
-        RNG::Shuffle(nedges, s.krs.edges);
-        stack.Push(s);
     }
 
+    for (int y = 0; y < grid.vcells - 2; y += 2) {
+        e.y0 = y, e.y1 = y + 2;
+        for (int x = 0; x < grid.hcells; x += 2) {
+            e.x0 = e.x1 = x;
+            s.krs.edges[i++] = e;
+        }
+    }
+
+    for (unsigned i = 0; i < s.krs.nverts; i ++)
+        s.krs.verts[i].forest = i;
+
+    RNG::Shuffle(s.krs.nedges, s.krs.edges);
+    stack.Push(s);
+}
+
+GENERATOR_STEP_FUNC(Generator::StepRandomizedKruskal)
+{
     auto &s = stack.Peek();
-    if (s.krs.at >= nedges) {
+    if (s.krs.at >= s.krs.nedges) {
         delete [] s.krs.edges;
         delete [] s.krs.verts;
         stack.Pop();
@@ -173,13 +182,13 @@ GENERATOR_FUNC(Generator::RandomizedKruskal)
     }
 
     auto e  = s.krs.edges[s.krs.at ++];
-    auto v0 = (e.y0 / 2) * (hhcells + 1) + (e.x0 / 2);
-    auto v1 = (e.y1 / 2) * (hhcells + 1) + (e.x1 / 2);
+    auto v0 = (e.y0 / 2) * (s.krs.hhcells + 1) + (e.x0 / 2);
+    auto v1 = (e.y1 / 2) * (s.krs.hhcells + 1) + (e.x1 / 2);
     auto f0 = s.krs.verts[v0].forest;
     auto f1 = s.krs.verts[v1].forest;
 
     if (f0 != f1) {
-        for (unsigned i = 0; i < nverts; i++)
+        for (unsigned i = 0; i < s.krs.nverts; i++)
             if (s.krs.verts[i].forest == f1)
                 s.krs.verts[i].forest = f0;
 
