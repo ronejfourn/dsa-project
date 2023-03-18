@@ -3,70 +3,60 @@
 #include "stack.hpp"
 #include "generator.hpp"
 
-#include <memory.h>
-#include <assert.h>
-
 GENERATOR_INIT_FUNC(Generator::InitRandomizedDFS)
 {
     grid.Fill(WALL);
-    State s;
-    s.dfs.x  = 0;
-    s.dfs.y  = 0;
-    s.dfs.at = 0;
+    State s = {};
+    s.dfs.choice[0] = L;
+    s.dfs.choice[1] = R;
+    s.dfs.choice[2] = B;
+    s.dfs.choice[3] = T;
+    RNG::Shuffle(4, s.dfs.choice);
+
     stack.Push(s);
 }
 
 GENERATOR_STEP_FUNC(Generator::StepRandomizedDFS)
 {
-    State popped = stack.Pop();
-    auto &cstate = popped.dfs;
-    int x = cstate.x;
-    int y = cstate.y;
-
-    if (cstate.at == 4) {
-        return;
-    } else if (cstate.at == 0) {
-        cstate.choice[0] = L;
-        cstate.choice[1] = R;
-        cstate.choice[2] = B;
-        cstate.choice[3] = T;
-        RNG::Shuffle(4, cstate.choice);
-        grid(x, y) = PATH;
-    }
+    State &cstate = stack.Peek();
+    int x0 = cstate.dfs.x;
+    int y0 = cstate.dfs.y;
 
     bool next = false;
-    auto nstate = cstate;
-    nstate.at = 0;
-    switch (cstate.choice[cstate.at]) {
-        case L:
-            if (!(x == 0 || grid(x - 2, y) != WALL)) {
-                grid(x - 1, y) = PATH;
-                nstate.x = x - 2, nstate.y = y;
-                next = true;
-            } break;
-        case R:
-            if (!(x > grid.hcells - 3 || grid(x + 2, y) != WALL)) {
-                grid(x + 1, y) = PATH;
-                nstate.x = x + 2, nstate.y = y;
-                next = true;
-            } break;
-        case B:
-            if (!(y == 0 || grid(x, y - 2) != WALL)) {
-                grid(x, y - 1) = PATH;
-                nstate.x = x, nstate.y = y - 2;
-                next = true;
-            } break;
-        case T:
-            if (!(y > grid.vcells - 3 || grid(x, y + 2) != WALL)) {
-                grid(x, y + 1) = PATH;
-                nstate.x = x, nstate.y = y + 2;
-                next = true;
-            } break;
+    State nstate = {};
+    grid(x0, y0) = PATH;
+
+    auto setnext = [x0, y0, &grid, &nstate](int dx, int dy) -> bool {
+        int x = x0 + dx, y = y0 + dy;
+        if (!grid.PointInBounds(x, y) || grid(x, y) == PATH)
+            return false;
+        nstate.dfs.x = x;
+        nstate.dfs.y = y;
+        grid(x0 + dx / 2, y0 + dy / 2) = PATH;
+        return true;
+    };
+
+    while (!next && cstate.dfs.at < 4) {
+        switch (cstate.dfs.choice[cstate.dfs.at]) {
+            case L: next = setnext(-2,  0); break;
+            case R: next = setnext( 2,  0); break;
+            case B: next = setnext( 0, -2); break;
+            case T: next = setnext( 0,  2); break;
+        }
+        cstate.dfs.at ++;
     }
 
-    cstate.at ++;
-    stack.Push(popped);
-    if (next) stack.Push({nstate});
+    if (next) {
+        nstate.dfs.at = 0;
+        nstate.dfs.choice[0] = L;
+        nstate.dfs.choice[1] = R;
+        nstate.dfs.choice[2] = B;
+        nstate.dfs.choice[3] = T;
+        RNG::Shuffle(4, nstate.dfs.choice);
+        stack.Push(nstate);
+    } else {
+        stack.Pop();
+    }
 }
 
 GENERATOR_INIT_FUNC(Generator::InitRecursiveDivision)
