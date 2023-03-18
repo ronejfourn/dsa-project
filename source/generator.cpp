@@ -177,15 +177,24 @@ GENERATOR_STEP_FUNC(Generator::StepRandomizedKruskal)
     auto f0 = s.krs.vertForest[v0];
     auto f1 = s.krs.vertForest[v1];
 
-    if (f0 != f1) {
-        for (unsigned i = 0; i < s.krs.nverts; i++)
-            if (s.krs.vertForest[i] == f1)
-                s.krs.vertForest[i] = f0;
+    while (f0 == f1) {
+        if (s.krs.at >= s.krs.nedges)
+            return;
 
-        grid(e.x0, e.y0) = PATH;
-        grid(e.x1, e.y1) = PATH;
-        grid(e.x0 + (e.x1 - e.x0) / 2, e.y0 + (e.y1 - e.y0) / 2) = PATH;
+        e  = s.krs.edges[s.krs.at ++];
+        v0 = (e.y0 / 2) * (s.krs.hhcells + 1) + (e.x0 / 2);
+        v1 = (e.y1 / 2) * (s.krs.hhcells + 1) + (e.x1 / 2);
+        f0 = s.krs.vertForest[v0];
+        f1 = s.krs.vertForest[v1];
     }
+
+    for (unsigned i = 0; i < s.krs.nverts; i++)
+        if (s.krs.vertForest[i] == f1)
+            s.krs.vertForest[i] = f0;
+
+    grid(e.x0, e.y0) = PATH;
+    grid(e.x1, e.y1) = PATH;
+    grid(e.x0 + (e.x1 - e.x0) / 2, e.y0 + (e.y1 - e.y0) / 2) = PATH;
 }
 
 GENERATOR_INIT_FUNC(Generator::InitRandomizedPrim)
@@ -220,8 +229,14 @@ GENERATOR_STEP_FUNC(Generator::StepRandomizedPrim)
     auto e = s.prm.edges[i];
     s.prm.edges[i] = s.prm.edges[s.prm.availableEdges];
 
-    if (grid(e.x1, e.y1) == PATH)
-        return;
+    while (grid(e.x1, e.y1) == PATH) {
+        if (s.prm.availableEdges == 0)
+            return;
+
+        i = RNG::Get() % (s.prm.availableEdges --);
+        e = s.prm.edges[i];
+        s.prm.edges[i] = s.prm.edges[s.prm.availableEdges];
+    }
 
     auto xm = e.x0 + (e.x1 - e.x0) / 2, ym = e.y0 + (e.y1 - e.y0) / 2;
 
@@ -231,7 +246,7 @@ GENERATOR_STEP_FUNC(Generator::StepRandomizedPrim)
     auto addEdge = [&grid, &s, &e](int dx, int dy) {
         auto x2 = e.x1 + dx;
         auto y2 = e.y1 + dy;
-        if (x2 < grid.hcells && x2 >= 0 && y2 < grid.vcells && y2 >= 0) {
+        if (grid.PointInBounds(x2, y2)) {
             Edge n = { e.x1, e.y1, x2, y2 };
             s.prm.edges[s.prm.availableEdges ++] = n;
         }
