@@ -23,5 +23,6 @@ struct Grid {
     void Render(SDL_Renderer *);
     void Fill(unsigned);
     void ClearPaths();
+    bool PointInBounds(int x, int y);
     unsigned &operator() (int x, int y);
 };

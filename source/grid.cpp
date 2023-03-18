@@ -3,8 +3,12 @@
 #include <assert.h>
 #include <SDL2/SDL_render.h>
 
+bool Grid::PointInBounds(int x, int y) {
+    return x >= 0 && y >= 0 && x < hcells && y < vcells;
+}
+
 unsigned &Grid::operator() (int x, int y) {
-    assert(x >= 0 && y >= 0 && x < hcells && y < vcells);
+    assert(PointInBounds(x, y));
     return cells[y * hcells + x];
 };
 
