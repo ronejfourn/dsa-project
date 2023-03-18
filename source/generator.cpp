@@ -73,21 +73,19 @@ GENERATOR_INIT_FUNC(Generator::InitRecursiveDivision)
 
 GENERATOR_STEP_FUNC(Generator::StepRecursiveDivision)
 {
-    State popped = stack.Pop();
-    auto &cstate = popped.div;
-    int x = cstate.x;
-    int y = cstate.y;
-    int w = cstate.w;
-    int h = cstate.h;
-    bool v = cstate.vertical;
-
-    if (w - x <= 1 || h - y <= 1)
-        return;
+    State cstate = stack.Pop();
+    int x = cstate.div.x;
+    int y = cstate.div.y;
+    int w = cstate.div.w;
+    int h = cstate.div.h;
+    bool v = cstate.div.vertical;
 
     int m = RNG::Get(x, w - 1) | 1;
     int p = RNG::Get(y, h - 1) | 1;
 
     auto next = [&stack](int x, int w, int y, int h) -> void {
+        if (w - x <= 1 || h - y <= 1)
+            return;
         State n;
         n.div.x = x; n.div.y = y;
         n.div.w = w; n.div.h = h;
@@ -101,7 +99,8 @@ GENERATOR_STEP_FUNC(Generator::StepRecursiveDivision)
         next(x, m - 1, y, h);
         next(m + 1, w, y, h);
 
-        if (h - y > 5) {
+        auto th = RNG::Get() % ((grid.vcells - 1) / (h - y));
+        if (h - y > 5 && th == 0) {
             grid(m, RNG::Get(y, y + (h - y) / 2) & (~1)) = PATH;
             grid(m, RNG::Get(y + (h - y) / 2, h) & (~1)) = PATH;
         } else {
@@ -113,7 +112,8 @@ GENERATOR_STEP_FUNC(Generator::StepRecursiveDivision)
         next(x, w, y, p - 1);
         next(x, w, p + 1, h);
 
-        if (w - x > 5) {
+        auto th = RNG::Get() % ((grid.hcells - 1) / (w - x));
+        if (w - x > 5 && th == 0) {
             grid(RNG::Get(x, x + (w - x) / 2) & (~1), p) = PATH;
             grid(RNG::Get(x + (w - x) / 2, w) & (~1), p) = PATH;
         } else {
