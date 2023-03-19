@@ -17,6 +17,7 @@ protected:
 
     virtual bool OnInit() { return true; }
     virtual void OnUpdate() {}
+    virtual void OnRender() {}
     virtual void OnEvent(SDL_Event *) {}
     virtual void OnDestroy() {}
 

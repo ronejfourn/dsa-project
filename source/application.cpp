@@ -50,6 +50,7 @@ void BaseApplication::Run() {
         SDL_RenderSetScale(m_renderer, io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
         SDL_SetRenderDrawColor(m_renderer, 0x18, 0x18, 0x18, 0x18);
         SDL_RenderClear(m_renderer);
+        OnRender();
         ImGui_ImplSDLRenderer_RenderDrawData(ImGui::GetDrawData());
         SDL_RenderPresent(m_renderer);
     }
