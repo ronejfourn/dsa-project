@@ -3,6 +3,17 @@
 #include "stack.hpp"
 #include "generator.hpp"
 
+GENERATOR_INIT_FUNC(Generator::InitRandom)
+{
+    int m = grid.hcells * grid.vcells - 1;
+    for (unsigned i = 1; i < m; i ++)
+        grid.cells[i] = (RNG::Get() & 3) == 0 ? WALL : PATH;
+    grid.cells[0] = PATH;
+    grid.cells[m] = PATH;
+}
+
+GENERATOR_STEP_FUNC(Generator::StepRandom) {}
+
 GENERATOR_INIT_FUNC(Generator::InitRandomizedDFS)
 {
     grid.Fill(WALL);

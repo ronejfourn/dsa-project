@@ -39,12 +39,14 @@ namespace Generator {
     };
 
     typedef GENERATOR_INIT_FUNC((*InitFunc));
+    GENERATOR_INIT_FUNC(InitRandom);
     GENERATOR_INIT_FUNC(InitRandomizedDFS);
     GENERATOR_INIT_FUNC(InitRecursiveDivision);
     GENERATOR_INIT_FUNC(InitRandomizedKruskal);
     GENERATOR_INIT_FUNC(InitRandomizedPrim);
 
     typedef GENERATOR_STEP_FUNC((*StepFunc));
+    GENERATOR_INIT_FUNC(StepRandom);
     GENERATOR_STEP_FUNC(StepRandomizedDFS);
     GENERATOR_STEP_FUNC(StepRecursiveDivision);
     GENERATOR_STEP_FUNC(StepRandomizedKruskal);
