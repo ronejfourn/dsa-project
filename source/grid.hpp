@@ -13,10 +13,11 @@ enum CellState : unsigned {
 struct SDL_Renderer;
 
 struct Grid {
-    unsigned hcells;
-    unsigned vcells;
-    unsigned *cells;
+    unsigned hcells = 0;
+    unsigned vcells = 0;
+    unsigned *cells = nullptr;
 
+     Grid() {}
      Grid(unsigned h, unsigned v);
     ~Grid();
 
