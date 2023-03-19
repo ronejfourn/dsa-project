@@ -21,32 +21,34 @@ public:
         assert(front);
         assert(cmp);
 
-        Node *t = front;
-        Node *m = front;
-        Node *p = nullptr;
+        Node *trav = front->next;
+        Node *prev = front;
+        Node *dequeued = front;
+        Node *prevOfDequeued = nullptr;
 
-        while (t != nullptr) {
-            if (cmp(t->data, m->data)) {
-                p = m;
-                m = t;
+        while (trav != nullptr) {
+            if (cmp(trav->data, dequeued->data)) {
+                dequeued = trav;
+                prevOfDequeued = prev;
             }
-            t = t->next;
+            prev = trav;
+            trav = trav->next;
         }
 
-        auto data = m->data;
+        auto data = dequeued->data;
 
         if (front == rear) {
             front = rear = nullptr;
-        } else if (m == front) {
+        } else if (dequeued == front) {
             front = front->next;
-        } else if (m == rear) {
-            rear = p;
+        } else if (dequeued == rear) {
+            rear = prevOfDequeued;
             rear->next = nullptr;
         } else {
-            p->next = m->next;
+            prevOfDequeued->next = dequeued->next;
         }
 
-        delete m;
+        delete dequeued;
         return data;
     }
 
