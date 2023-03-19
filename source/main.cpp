@@ -41,8 +41,8 @@ private:
 
     void (MazeApp::*m_updateFunc)() = &MazeApp::UpdateIdle;
 
-    static constexpr unsigned DEF_W = 201;
-    static constexpr unsigned DEF_H = 201;
+    static constexpr unsigned DEF_W = 51;
+    static constexpr unsigned DEF_H = 51;
 
     Grid m_grid = Grid(DEF_W, DEF_H);
     SDL_Texture *m_gridTexture;
@@ -160,6 +160,7 @@ private:
             SolverItem("Depth First Search"  , InitDFS     , StepDFS     );
             SolverItem("Breadth First Search", InitBFS     , StepBFS     );
             SolverItem("Dijkstra"            , InitDijkstra, StepDijkstra);
+            SolverItem("A*"                  , InitAStar   , StepAStar   );
 
             ImGui::TreePop();
         }

@@ -10,49 +10,48 @@ template <typename T> class Queue;
 namespace Solver {
 
     enum {L, R, B, T};
+
+    struct Vertex {
+        int cost = -1;
+        int heuristic = -1;
+        unsigned char dir = 0;
+        bool inQueue = false;
+    };
+
     union State {
         struct {
             int x, y;
+            unsigned char choice[4];
             int at;
-            bool finished;
+            bool found;
         } dfs;
 
-        struct {
-            unsigned char *verts;
-            unsigned nitems;
-            unsigned s;
-            unsigned c;
+        struct QB {
+            Vertex *vertices;
             int x, y;
-        } bfs;
+            unsigned char dir;
+            bool found;
+        };
 
-        struct {
-            int *costs;
-            int *dirs;
-            bool finished;
-
-            int x, y;
-            unsigned char dir, s;
-        } dij;
+        QB bfs;
+        QB dij;
+        QB astr;
     };
 
-    union Qitem {
-        struct {
-            int x, y;
-        } bfs;
-
-        struct {
-            int x, y;
-            int cost;
-        } dij;
+    struct Qitem {
+        int x, y;
+        Vertex *v;
     };
 
     typedef SOLVER_INIT_FUNC((*InitFunc));
     SOLVER_INIT_FUNC(InitDFS);
     SOLVER_INIT_FUNC(InitBFS);
     SOLVER_INIT_FUNC(InitDijkstra);
+    SOLVER_INIT_FUNC(InitAStar);
 
     typedef SOLVER_STEP_FUNC((*StepFunc));
     SOLVER_STEP_FUNC(StepDFS);
     SOLVER_STEP_FUNC(StepBFS);
     SOLVER_STEP_FUNC(StepDijkstra);
+    SOLVER_STEP_FUNC(StepAStar);
 }
