@@ -22,27 +22,30 @@ private:
         Solving,
         Idle,
     } m_state = Idle;
-    int m_gridScale = 4;
+
+    struct {
+        int  scale = 5;
+        int  stepsPerSecond = 32;
+        bool instant = false;
+    } m_settings;
 
     struct {
         Stack<Generator::State> stack;
         Generator::StepFunc step = nullptr;
-        int  stepsPerSecond = 32;
-        bool instant = false;
+        const char *name;
     } m_generator;
 
     struct {
         Stack<Solver::State> stack;
         Queue<Solver::Qitem> queue;
         Solver::StepFunc step = nullptr;
-        int  stepsPerSecond = 32;
-        bool instant = false;
+        const char *name;
     } m_solver;
 
     void (MazeApp::*m_updateFunc)() = &MazeApp::UpdateIdle;
 
-    static constexpr unsigned DEF_W = 51;
-    static constexpr unsigned DEF_H = 51;
+    static constexpr unsigned DEF_W = 125;
+    static constexpr unsigned DEF_H = 125;
 
     Grid m_grid = Grid(DEF_W, DEF_H);
     SDL_Texture *m_gridTexture;
@@ -67,22 +70,37 @@ private:
     {
         ImGui::Begin("Maze", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
 
-        auto tf = ImGuiTreeNodeFlags_Framed | ImGuiTreeNodeFlags_DefaultOpen;
-
-        if (ImGui::TreeNodeEx("Generators", tf))
         {
-            using namespace Generator;
-            ImGui::Checkbox("Instant", &m_generator.instant);
+            m_state == Generating ? ImGui::Text("State: Generating (%s)", m_generator.name) :
+            m_state == Solving    ? ImGui::Text("State: Solving (%s)", m_solver.name) :
+                                    ImGui::Text("State: Idle");
+
+            ImGui::Checkbox("Instant", &m_settings.instant);
             ImGui::SameLine();
-            if (ImGui::Button("Finish") && m_state == Generating) {
-                while (!m_generator.stack.IsEmpty())
-                    m_generator.step(m_grid, m_generator.stack);
+
+            ImVec2 v = {ImGui::GetContentRegionAvail().x, 0};
+
+            if (ImGui::Button("Finish", v) && m_state != Idle) {
+                if (m_state == Generating)
+                    while (!m_generator.stack.IsEmpty())
+                        m_generator.step(m_grid, m_generator.stack);
+                else
+                    while (!m_solver.stack.IsEmpty())
+                        m_solver.step(m_grid, m_solver.stack, m_solver.queue);
+
                 m_state = Idle;
                 m_updateFunc = &MazeApp::UpdateIdle;
                 RenderMaze();
             }
 
-            ImGui::SliderInt("Steps per Second", &m_generator.stepsPerSecond, 1, 512);
+            ImGui::SliderInt("Steps per Second", &m_settings.stepsPerSecond, 1, 512);
+        }
+
+        ImGui::NewLine();
+
+        if (ImGui::CollapsingHeader("Generators"))
+        {
+            using namespace Generator;
 
             static auto GeneratorItem = [this](const char *n, InitFunc init, StepFunc step) {
                 if (!ImGui::Button(n, ImVec2(ImGui::GetContentRegionAvail().x, 0)) || m_state != Idle)
@@ -91,10 +109,11 @@ private:
                 m_accumTime = 0;
                 m_then = m_clock.now();
 
+                m_generator.name = n;
                 m_generator.stack.Clear();
                 init(m_grid, m_generator.stack);
 
-                if (m_generator.instant) {
+                if (m_settings.instant) {
                     while (!m_generator.stack.IsEmpty())
                         step(m_grid, m_generator.stack);
                     RenderMaze();
@@ -105,33 +124,18 @@ private:
                 }
             };
 
-            ImGui::NewLine();
             GeneratorItem("Random"            , InitRandom           , StepRandom           );
             GeneratorItem("Randomized DFS"    , InitRandomizedDFS    , StepRandomizedDFS    );
             GeneratorItem("Recursive Division", InitRecursiveDivision, StepRecursiveDivision);
             GeneratorItem("Randomized Kruskal", InitRandomizedKruskal, StepRandomizedKruskal);
             GeneratorItem("Randomized Prim"   , InitRandomizedPrim   , StepRandomizedPrim   );
-
-            ImGui::TreePop();
         }
 
         ImGui::NewLine();
 
-        if (ImGui::TreeNodeEx("Solvers", tf))
+        if (ImGui::CollapsingHeader("Solvers"))
         {
             using namespace Solver;
-            ImGui::Checkbox("Instant", &m_solver.instant);
-
-            ImGui::SameLine();
-            if (ImGui::Button("Finish") && m_state == Solving) {
-                while (!m_solver.stack.IsEmpty())
-                    m_solver.step(m_grid, m_solver.stack, m_solver.queue);
-                m_state = Idle;
-                m_updateFunc = &MazeApp::UpdateIdle;
-                RenderMaze();
-            }
-
-            ImGui::SliderInt("Steps per Second", &m_solver.stepsPerSecond, 1, 512);
 
             static auto SolverItem = [this](const char *n, InitFunc init, StepFunc step) {
                 if (!ImGui::Button(n, ImVec2(ImGui::GetContentRegionAvail().x, 0)) || m_state != Idle)
@@ -141,11 +145,12 @@ private:
                 m_then = m_clock.now();
 
                 m_grid.ClearPaths();
+                m_solver.name = n;
                 m_solver.stack.Clear();
                 m_solver.queue.Clear();
                 init(m_grid, m_solver.stack, m_solver.queue);
 
-                if (m_solver.instant) {
+                if (m_settings.instant) {
                     while (!m_solver.stack.IsEmpty())
                         step(m_grid, m_solver.stack, m_solver.queue);
                     RenderMaze();
@@ -156,13 +161,10 @@ private:
                 }
             };
 
-            ImGui::NewLine();
             SolverItem("Depth First Search"  , InitDFS     , StepDFS     );
             SolverItem("Breadth First Search", InitBFS     , StepBFS     );
             SolverItem("Dijkstra"            , InitDijkstra, StepDijkstra);
             SolverItem("A*"                  , InitAStar   , StepAStar   );
-
-            ImGui::TreePop();
         }
 
         ImGui::End();
@@ -174,7 +176,7 @@ private:
     void OnRender() override
     {
         SDL_Rect src = { 0, 0, static_cast<int>(m_grid.hcells), static_cast<int>(m_grid.vcells) };
-        SDL_Rect dst = { 0, 0, static_cast<int>(m_grid.hcells) * m_gridScale, static_cast<int>(m_grid.vcells) * m_gridScale };
+        SDL_Rect dst = { 0, 0, static_cast<int>(m_grid.hcells) * m_settings.scale, static_cast<int>(m_grid.vcells) * m_settings.scale };
 
         int w, h;
         SDL_GetWindowSize(m_window, &w, &h);
@@ -204,7 +206,7 @@ private:
         std::chrono::duration<float, std::ratio<1, 1>> d = now - m_then;
         m_accumTime += d.count();
 
-        float stepTime = 1.0f / m_generator.stepsPerSecond;
+        float stepTime = 1.0f / m_settings.stepsPerSecond;
         for (; m_accumTime > 0 && !m_generator.stack.IsEmpty(); m_accumTime -= stepTime)
             m_generator.step(m_grid, m_generator.stack);
 
@@ -223,7 +225,7 @@ private:
         std::chrono::duration<float, std::ratio<1, 1>> d = now - m_then;
         m_accumTime += d.count();
 
-        float stepTime = 1.0f / m_solver.stepsPerSecond;
+        float stepTime = 1.0f / m_settings.stepsPerSecond;
         for (; m_accumTime > 0 && !m_solver.stack.IsEmpty(); m_accumTime -= stepTime)
             m_solver.step(m_grid, m_solver.stack, m_solver.queue);
 
