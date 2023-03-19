@@ -25,19 +25,34 @@ namespace Solver {
             int x, y;
         } bfs;
 
+        struct {
+            int *costs;
+            int *dirs;
+            bool finished;
+
+            int x, y;
+            unsigned char dir, s;
+        } dij;
     };
+
     union Qitem {
         struct {
             int x, y;
         } bfs;
 
+        struct {
+            int x, y;
+            int cost;
+        } dij;
     };
 
     typedef SOLVER_INIT_FUNC((*InitFunc));
     SOLVER_INIT_FUNC(InitDFS);
     SOLVER_INIT_FUNC(InitBFS);
+    SOLVER_INIT_FUNC(InitDijkstra);
 
     typedef SOLVER_STEP_FUNC((*StepFunc));
     SOLVER_STEP_FUNC(StepDFS);
     SOLVER_STEP_FUNC(StepBFS);
+    SOLVER_STEP_FUNC(StepDijkstra);
 }
