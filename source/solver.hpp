@@ -9,33 +9,37 @@ template <typename T> class Queue;
 
 namespace Solver {
 
-    enum {L, R, B, T};
+    enum {R, T, L, B};
 
     struct Vertex {
         int cost = -1;
-        int heuristic = -1;
+        int hval = -1;
         unsigned char dir = 0;
         bool inQueue = false;
     };
 
+    typedef int (*Heuristic)(const Grid &, int , int);
+
     union State {
         struct {
             int x, y;
-            unsigned char choice[4];
-            int at;
+            int dir;
             bool found;
         } dfs;
 
         struct QB {
+            Heuristic heuristic;
             Vertex *vertices;
             int x, y;
             unsigned char dir;
             bool found;
+            int total;
         };
 
         QB bfs;
-        QB dij;
-        QB astr;
+        QB greedy;
+        QB dijk;
+        QB astar;
     };
 
     struct Qitem {
@@ -47,11 +51,15 @@ namespace Solver {
     SOLVER_INIT_FUNC(InitDFS);
     SOLVER_INIT_FUNC(InitBFS);
     SOLVER_INIT_FUNC(InitDijkstra);
-    SOLVER_INIT_FUNC(InitAStar);
+    SOLVER_INIT_FUNC(InitAStarEuclidean);
+    SOLVER_INIT_FUNC(InitAStarManhattan);
+    SOLVER_INIT_FUNC(InitGreedyEuclidean);
+    SOLVER_INIT_FUNC(InitGreedyManhattan);
 
     typedef SOLVER_STEP_FUNC((*StepFunc));
     SOLVER_STEP_FUNC(StepDFS);
     SOLVER_STEP_FUNC(StepBFS);
     SOLVER_STEP_FUNC(StepDijkstra);
     SOLVER_STEP_FUNC(StepAStar);
+    SOLVER_STEP_FUNC(StepGreedy);
 }

@@ -161,10 +161,13 @@ private:
                 }
             };
 
-            SolverItem("Depth First Search"  , InitDFS     , StepDFS     );
-            SolverItem("Breadth First Search", InitBFS     , StepBFS     );
-            SolverItem("Dijkstra"            , InitDijkstra, StepDijkstra);
-            SolverItem("A*"                  , InitAStar   , StepAStar   );
+            SolverItem("Depth First Search"           , InitDFS            , StepDFS     );
+            SolverItem("Breadth First Search"         , InitBFS            , StepBFS     );
+            SolverItem("Dijkstra"                     , InitDijkstra       , StepDijkstra);
+            SolverItem("A* (Euclidean)"               , InitAStarEuclidean , StepAStar   );
+            SolverItem("A* (Manhattan)"               , InitAStarManhattan , StepAStar   );
+            SolverItem("Greedy Best First (Euclidean)", InitGreedyEuclidean, StepGreedy  );
+            SolverItem("Greedy Best First (Manhattan)", InitGreedyManhattan, StepGreedy  );
         }
 
         ImGui::End();
