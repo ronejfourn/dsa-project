@@ -1,38 +1,38 @@
-#include "grid.hpp"
+#include "maze.hpp"
 
 #include <assert.h>
 #include <SDL2/SDL_render.h>
 
-bool Grid::PointInBounds(int x, int y) {
-    return x >= 0 && y >= 0 && x < hcells && y < vcells;
+bool Maze::PointInBounds(int x, int y) {
+    return x >= 0 && y >= 0 && (unsigned)x < hcells && (unsigned)y < vcells;
 }
 
-unsigned &Grid::operator() (int x, int y) {
+unsigned &Maze::operator() (int x, int y) {
     assert(PointInBounds(x, y));
     return cells[y * hcells + x];
 };
 
-void Grid::Fill(unsigned v) {
+void Maze::Fill(unsigned v) {
     for (unsigned i = 0; i < hcells * vcells; i ++)
         cells[i] = v;
 }
 
-void Grid::ClearPaths() {
+void Maze::ClearPaths() {
     for (unsigned i = 0; i < hcells * vcells; i ++)
         cells[i] = cells[i] == WALL ? WALL : PATH;
 }
 
-Grid::Grid(unsigned h, unsigned v) {
+Maze::Maze(unsigned h, unsigned v) {
     hcells = h, vcells = v;
     cells = new unsigned[hcells * vcells];
     Fill(PATH);
 }
 
-Grid::~Grid() {
+Maze::~Maze() {
     delete []cells;
 }
 
-void Grid::Render(SDL_Renderer *r) {
+void Maze::Render(SDL_Renderer *r) {
     for (unsigned y = 0; y < vcells; y++) {
         auto b = y * hcells;
         for (unsigned x = 0; x < hcells; x++) {

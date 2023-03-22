@@ -12,14 +12,14 @@ enum CellState : unsigned {
 
 struct SDL_Renderer;
 
-struct Grid {
+struct Maze {
     unsigned hcells = 0;
     unsigned vcells = 0;
     unsigned *cells = nullptr;
 
-     Grid() {}
-     Grid(unsigned h, unsigned v);
-    ~Grid();
+     Maze() {}
+     Maze(unsigned h, unsigned v);
+    ~Maze();
 
     void Render(SDL_Renderer *);
     void Fill(unsigned);

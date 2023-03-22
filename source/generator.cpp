@@ -1,49 +1,105 @@
-#include "rng.hpp"
-#include "grid.hpp"
-#include "stack.hpp"
 #include "generator.hpp"
+#include "rng.hpp"
+#include "maze.hpp"
 
-GENERATOR_INIT_FUNC(Generator::InitRandom)
+Generator:: Generator() {}
+Generator::~Generator() {_reset();}
+
+void Generator::Init(Maze *maze, Type type)
 {
-    int m = grid.hcells * grid.vcells - 1;
-    for (unsigned i = 1; i < m; i ++)
-        grid.cells[i] = (RNG::Get() & 3) == 0 ? WALL : PATH;
-    grid.cells[0] = PATH;
-    grid.cells[m] = PATH;
+    _reset();
+    m_maze = maze;
+
+#define CASE(_NAME) case Type::_NAME : _init##_NAME(); _step = &Generator::_step##_NAME; break
+    switch (type) {
+        CASE(Random);
+        CASE(RandomizedDFS);
+        CASE(RecursiveDivision);
+        CASE(RandomizedKruskal);
+        CASE(RandomizedPrim);
+    };
+#undef CASE
 }
 
-GENERATOR_STEP_FUNC(Generator::StepRandom) {}
-
-GENERATOR_INIT_FUNC(Generator::InitRandomizedDFS)
+bool Generator::Step()
 {
-    grid.Fill(WALL);
-    State s = {};
+    if ((this->*_step)()) {
+        return true;
+    } else {
+        _reset();
+        return false;
+    }
+}
+
+void Generator::_reset()
+{
+    m_maze = nullptr;
+    m_finished = false;
+
+    delete [] m_graph.edges;
+    delete [] m_graph.verts;
+    m_graph = {};
+
+    m_stack.Clear();
+}
+
+////////////////////////////////
+// Random
+////////////////////////////////
+
+void Generator::_initRandom()
+{
+}
+
+bool Generator::_stepRandom()
+{
+    unsigned m = m_maze->hcells * m_maze->vcells - 1;
+    for (unsigned i = 0; i <= m; i ++)
+        m_maze->cells[i] = (RNG::Get() & 3) == 0 ? WALL : PATH;
+
+    m_maze->cells[0] = PATH;
+    m_maze->cells[m] = PATH;
+    return false;
+}
+
+////////////////////////////////
+// Randomized DFS
+////////////////////////////////
+
+void Generator::_initRandomizedDFS()
+{
+    m_maze->Fill(WALL);
+
+    Sitem s = {};
     s.dfs.choice[0] = L;
     s.dfs.choice[1] = R;
     s.dfs.choice[2] = B;
     s.dfs.choice[3] = T;
     RNG::Shuffle(4, s.dfs.choice);
-
-    stack.Push(s);
+    m_stack.Push(s);
 }
 
-GENERATOR_STEP_FUNC(Generator::StepRandomizedDFS)
+bool Generator::_stepRandomizedDFS()
 {
-    State &cstate = stack.Peek();
+    if (m_stack.IsEmpty())
+        return false;
+
+    Sitem &cstate = m_stack.Peek();
     int x0 = cstate.dfs.x;
     int y0 = cstate.dfs.y;
 
-    bool next = false;
-    State nstate = {};
-    grid(x0, y0) = PATH;
+    bool  next = false;
+    Sitem nstate = {};
+    (*m_maze)(x0, y0) = PATH;
 
-    auto setnext = [x0, y0, &grid, &nstate](int dx, int dy) -> bool {
+    auto setnext = [this, x0, y0, &nstate](int dx, int dy) -> bool {
         int x = x0 + dx, y = y0 + dy;
-        if (!grid.PointInBounds(x, y) || grid(x, y) == PATH)
+        if (!m_maze->PointInBounds(x, y) || (*m_maze)(x, y) == PATH)
             return false;
+
         nstate.dfs.x = x;
         nstate.dfs.y = y;
-        grid(x0 + dx / 2, y0 + dy / 2) = PATH;
+        (*m_maze)(x0 + dx / 2, y0 + dy / 2) = PATH;
         return true;
     };
 
@@ -64,202 +120,199 @@ GENERATOR_STEP_FUNC(Generator::StepRandomizedDFS)
         nstate.dfs.choice[2] = B;
         nstate.dfs.choice[3] = T;
         RNG::Shuffle(4, nstate.dfs.choice);
-        stack.Push(nstate);
+        m_stack.Push(nstate);
     } else {
-        stack.Pop();
+        m_stack.Pop();
     }
+
+    return true;
 }
 
-GENERATOR_INIT_FUNC(Generator::InitRecursiveDivision)
+////////////////////////////////
+// Recursive Division
+////////////////////////////////
+
+void Generator::_initRecursiveDivision()
 {
-    grid.Fill(PATH);
-    State s;
-    s.div.x = 0;
-    s.div.y = 0;
-    s.div.w = grid.hcells - 1;
-    s.div.h = grid.vcells - 1;
+    m_maze->Fill(PATH);
+
+    Sitem s = {};
+    s.div.w = m_maze->hcells - 1;
+    s.div.h = m_maze->vcells - 1;
     s.div.vertical = RNG::Get() & 1;
-    stack.Push(s);
+    m_stack.Push(s);
 }
 
-GENERATOR_STEP_FUNC(Generator::StepRecursiveDivision)
+bool Generator::_stepRecursiveDivision()
 {
-    State cstate = stack.Pop();
-    int x = cstate.div.x;
-    int y = cstate.div.y;
-    int w = cstate.div.w;
-    int h = cstate.div.h;
+    if (m_stack.IsEmpty())
+        return false;
+
+    Sitem cstate = m_stack.Pop();
+    int  x = cstate.div.x;
+    int  y = cstate.div.y;
+    int  w = cstate.div.w;
+    int  h = cstate.div.h;
     bool v = cstate.div.vertical;
 
-    int m = RNG::Get(x, w - 1) | 1;
-    int p = RNG::Get(y, h - 1) | 1;
+    int wmid = RNG::Get(x, w - 1) | 1;
+    int hmid = RNG::Get(y, h - 1) | 1;
 
-    auto next = [&stack](int x, int w, int y, int h) -> void {
+    auto next = [this](int x, int w, int y, int h) -> void {
         if (w - x <= 1 || h - y <= 1)
             return;
-        State n;
+
+        Sitem n;
         n.div.x = x; n.div.y = y;
         n.div.w = w; n.div.h = h;
         n.div.vertical = w - x > h - y;
-        stack.Push(n);
+        m_stack.Push(n);
     };
 
     if (v) {
         for (int i = y; i <= h; i ++)
-            grid(m, i) = WALL;
-        next(x, m - 1, y, h);
-        next(m + 1, w, y, h);
+            (*m_maze)(wmid, i) = WALL;
 
-        auto th = RNG::Get() % ((grid.vcells - 1) / (h - y));
+        next(x, wmid - 1, y, h);
+        next(wmid + 1, w, y, h);
+        auto th = RNG::Get() % ((m_maze->vcells - 1) / (h - y));
+
         if (h - y > 5 && th == 0) {
-            grid(m, RNG::Get(y, y + (h - y) / 2) & (~1)) = PATH;
-            grid(m, RNG::Get(y + (h - y) / 2, h) & (~1)) = PATH;
+            (*m_maze)(wmid, RNG::Get(y, y + (h - y) / 2) & (~1)) = PATH;
+            (*m_maze)(wmid, RNG::Get(y + (h - y) / 2, h) & (~1)) = PATH;
         } else {
-            grid(m, RNG::Get(y, h) & (~1)) = PATH;
+            (*m_maze)(wmid, RNG::Get(y, h) & (~1)) = PATH;
         }
     } else {
         for (int i = x; i <= w; i ++)
-            grid(i, p) = WALL;
-        next(x, w, y, p - 1);
-        next(x, w, p + 1, h);
+            (*m_maze)(i, hmid) = WALL;
 
-        auto th = RNG::Get() % ((grid.hcells - 1) / (w - x));
+        next(x, w, y, hmid - 1);
+        next(x, w, hmid + 1, h);
+        auto th = RNG::Get() % ((m_maze->hcells - 1) / (w - x));
+
         if (w - x > 5 && th == 0) {
-            grid(RNG::Get(x, x + (w - x) / 2) & (~1), p) = PATH;
-            grid(RNG::Get(x + (w - x) / 2, w) & (~1), p) = PATH;
+            (*m_maze)(RNG::Get(x, x + (w - x) / 2) & (~1), hmid) = PATH;
+            (*m_maze)(RNG::Get(x + (w - x) / 2, w) & (~1), hmid) = PATH;
         } else {
-            grid(RNG::Get(x, w) & (~1), p) = PATH;
+            (*m_maze)(RNG::Get(x, w) & (~1), hmid) = PATH;
         }
     }
+
+    return true;
 }
 
-GENERATOR_INIT_FUNC(Generator::InitRandomizedKruskal)
+////////////////////////////////
+// Randomized Kruskal's
+////////////////////////////////
+
+void Generator::_initRandomizedKruskal()
 {
-    State s;
-    Edge e;
-    grid.Fill(WALL);
+    m_maze->Fill(WALL);
+    auto hhcells = m_maze->hcells >> 1;
+    auto hvcells = m_maze->vcells >> 1;
+    m_graph.nverts  = ((hhcells + 1) * (hvcells + 1));
+    m_graph.nedges  = (hvcells * hhcells * 2) + hhcells + hvcells;
 
-    s.krs.hhcells = grid.hcells >> 1;
-    s.krs.hvcells = grid.vcells >> 1;
-    s.krs.nverts  = ((s.krs.hhcells + 1) * (s.krs.hvcells + 1));
-    s.krs.nedges  = (s.krs.hvcells * s.krs.hhcells * 2) + s.krs.hhcells + s.krs.hvcells;
-
-    s.krs.at = 0;
-    s.krs.edges = new Edge[s.krs.nedges];
-    s.krs.vertForest = new unsigned[s.krs.nverts];
+    m_graph.at = 0;
+    m_graph.edges = new Edge[m_graph.nedges];
+    m_graph.verts = new unsigned[m_graph.nedges];
 
     unsigned i = 0;
-    for (int x = 0; x < grid.hcells - 2; x += 2) {
-        e.x0 = x, e.x1 = x + 2;
-        for (int y = 0; y < grid.vcells; y += 2) {
-            e.y0 = e.y1 = y;
-            s.krs.edges[i++] = e;
-        }
-    }
+    for (int x = 0; x < (int)m_maze->hcells - 2; x += 2)
+        for (int y = 0; y < (int)m_maze->vcells; y += 2)
+            m_graph.edges[i++] = {x, y, x + 2, y};
 
-    for (int y = 0; y < grid.vcells - 2; y += 2) {
-        e.y0 = y, e.y1 = y + 2;
-        for (int x = 0; x < grid.hcells; x += 2) {
-            e.x0 = e.x1 = x;
-            s.krs.edges[i++] = e;
-        }
-    }
+    for (int y = 0; y < (int)m_maze->vcells - 2; y += 2)
+        for (int x = 0; x < (int)m_maze->hcells; x += 2)
+            m_graph.edges[i++] = {x, y, x, y + 2};
 
-    for (unsigned i = 0; i < s.krs.nverts; i ++)
-        s.krs.vertForest[i] = i;
+    for (unsigned i = 0; i < m_graph.nverts; i ++)
+        m_graph.verts[i] = i;
 
-    RNG::Shuffle(s.krs.nedges, s.krs.edges);
-    stack.Push(s);
+    RNG::Shuffle(m_graph.nedges, m_graph.edges);
 }
 
-GENERATOR_STEP_FUNC(Generator::StepRandomizedKruskal)
+bool Generator::_stepRandomizedKruskal()
 {
-    auto &s = stack.Peek();
-    if (s.krs.at >= s.krs.nedges) {
-        delete [] s.krs.edges;
-        delete [] s.krs.vertForest;
-        stack.Pop();
-        return;
-    }
+    if (m_graph.at >= m_graph.nedges)
+        return false;
 
-    auto e  = s.krs.edges[s.krs.at ++];
-    auto v0 = (e.y0 / 2) * (s.krs.hhcells + 1) + (e.x0 / 2);
-    auto v1 = (e.y1 / 2) * (s.krs.hhcells + 1) + (e.x1 / 2);
-    auto f0 = s.krs.vertForest[v0];
-    auto f1 = s.krs.vertForest[v1];
+    auto hhcells = m_maze->hcells >> 1;
+    auto e  = m_graph.edges[m_graph.at ++];
+    auto v0 = (e.y0 / 2) * (hhcells + 1) + (e.x0 / 2);
+    auto v1 = (e.y1 / 2) * (hhcells + 1) + (e.x1 / 2);
+    auto f0 = m_graph.verts[v0];
+    auto f1 = m_graph.verts[v1];
 
     while (f0 == f1) {
-        if (s.krs.at >= s.krs.nedges)
-            return;
+        if (m_graph.at >= m_graph.nedges)
+            return false;
 
-        e  = s.krs.edges[s.krs.at ++];
-        v0 = (e.y0 / 2) * (s.krs.hhcells + 1) + (e.x0 / 2);
-        v1 = (e.y1 / 2) * (s.krs.hhcells + 1) + (e.x1 / 2);
-        f0 = s.krs.vertForest[v0];
-        f1 = s.krs.vertForest[v1];
+        e  = m_graph.edges[m_graph.at ++];
+        v0 = (e.y0 / 2) * (hhcells + 1) + (e.x0 / 2);
+        v1 = (e.y1 / 2) * (hhcells + 1) + (e.x1 / 2);
+        f0 = m_graph.verts[v0];
+        f1 = m_graph.verts[v1];
     }
 
-    for (unsigned i = 0; i < s.krs.nverts; i++)
-        if (s.krs.vertForest[i] == f1)
-            s.krs.vertForest[i] = f0;
+    for (unsigned i = 0; i < m_graph.nverts; i++)
+        if (m_graph.verts[i] == f1)
+            m_graph.verts[i] = f0;
 
-    grid(e.x0, e.y0) = PATH;
-    grid(e.x1, e.y1) = PATH;
-    grid(e.x0 + (e.x1 - e.x0) / 2, e.y0 + (e.y1 - e.y0) / 2) = PATH;
+    (*m_maze)(e.x0, e.y0) = PATH;
+    (*m_maze)(e.x1, e.y1) = PATH;
+    (*m_maze)(e.x0 + (e.x1 - e.x0) / 2, e.y0 + (e.y1 - e.y0) / 2) = PATH;
+    return true;
 }
 
-GENERATOR_INIT_FUNC(Generator::InitRandomizedPrim)
+////////////////////////////////
+// Randomized Prim's
+////////////////////////////////
+
+void Generator::_initRandomizedPrim()
 {
-    State s;
-    Edge e;
-    grid.Fill(WALL);
+    m_maze->Fill(WALL);
 
-    auto hhcells = grid.hcells >> 1;
-    auto hvcells = grid.vcells >> 1;
-    s.prm.availableEdges = 0;
-    s.prm.edges = new Edge[hvcells * hhcells * 2 + hhcells + hvcells];
+    auto hhcells = m_maze->hcells >> 1;
+    auto hvcells = m_maze->vcells >> 1;
+    m_graph.edges = new Edge[hvcells * hhcells * 2 + hhcells + hvcells];
 
-    grid(0, 0) = PATH;
-    s.prm.availableEdges = 2;
-    s.prm.edges[0] = {0, 0, 2, 0};
-    s.prm.edges[1] = {0, 0, 0, 2};
-
-    stack.Push(s);
+    (*m_maze)(0, 0) = PATH;
+    m_graph.at = 2;
+    m_graph.edges[0] = {0, 0, 2, 0};
+    m_graph.edges[1] = {0, 0, 0, 2};
 }
 
-GENERATOR_STEP_FUNC(Generator::StepRandomizedPrim)
+bool Generator::_stepRandomizedPrim()
 {
-    auto &s = stack.Peek();
-    if (s.prm.availableEdges == 0) {
-        delete [] s.prm.edges;
-        stack.Pop();
-        return;
-    }
+    if (m_graph.at == 0)
+        return false;
 
-    auto i = RNG::Get() % (s.prm.availableEdges --);
-    auto e = s.prm.edges[i];
-    s.prm.edges[i] = s.prm.edges[s.prm.availableEdges];
+    auto i = RNG::Get() % (m_graph.at --);
+    auto e = m_graph.edges[i];
+    m_graph.edges[i] = m_graph.edges[m_graph.at];
 
-    while (grid(e.x1, e.y1) == PATH) {
-        if (s.prm.availableEdges == 0)
-            return;
+    while ((*m_maze)(e.x1, e.y1) == PATH) {
+        if (m_graph.at == 0)
+            return false;
 
-        i = RNG::Get() % (s.prm.availableEdges --);
-        e = s.prm.edges[i];
-        s.prm.edges[i] = s.prm.edges[s.prm.availableEdges];
+        i = RNG::Get() % (m_graph.at --);
+        e = m_graph.edges[i];
+        m_graph.edges[i] = m_graph.edges[m_graph.at];
     }
 
     auto xm = e.x0 + (e.x1 - e.x0) / 2, ym = e.y0 + (e.y1 - e.y0) / 2;
+    (*m_maze)(e.x1, e.y1) = PATH;
+    (*m_maze)(  xm,   ym) = PATH;
 
-    grid(e.x1, e.y1) = PATH;
-    grid(xm, ym) = PATH;
-
-    auto addEdge = [&grid, &s, &e](int dx, int dy) {
+    auto addEdge = [this, &e](int dx, int dy) {
         auto x2 = e.x1 + dx;
         auto y2 = e.y1 + dy;
-        if (grid.PointInBounds(x2, y2)) {
+
+        if (m_maze->PointInBounds(x2, y2)) {
             Edge n = { e.x1, e.y1, x2, y2 };
-            s.prm.edges[s.prm.availableEdges ++] = n;
+            m_graph.edges[m_graph.at ++] = n;
         }
     };
 
@@ -267,4 +320,5 @@ GENERATOR_STEP_FUNC(Generator::StepRandomizedPrim)
     addEdge( 0, -2);
     addEdge( 2,  0);
     addEdge(-2,  0);
+    return true;
 }

@@ -1,17 +1,33 @@
 #pragma once
 
-struct Grid;
-template <typename T> struct Stack;
+#include "stack.hpp"
 
-#define GENERATOR_INIT_FUNC(name) void name(Grid &grid, Stack<Generator::State> &stack)
-#define GENERATOR_STEP_FUNC(name) void name(Grid &grid, Stack<Generator::State> &stack)
+struct Maze;
 
-namespace Generator {
+class Generator {
+public:
+    enum Type {
+        Random,
+        RandomizedDFS,
+        RecursiveDivision,
+        RandomizedKruskal,
+        RandomizedPrim,
+    };
 
-    enum {L, R, B, T};
+     Generator();
+    ~Generator();
 
+    void Init(Maze *maze, Type type);
+    bool Step();
+
+private:
+    bool m_finished = false;
+    Maze *m_maze = nullptr;
+
+    enum Direction : unsigned char {L, R, B, T};
     struct Edge { int x0, y0, x1, y1; };
-    union State {
+
+    union Sitem {
         struct {
             int x, y;
             int at;
@@ -23,32 +39,28 @@ namespace Generator {
             int w, h;
             bool vertical;
         } div;
-
-        struct {
-            Edge *edges;
-            unsigned *vertForest;
-            unsigned at;
-            unsigned hhcells, hvcells;
-            unsigned nverts, nedges;
-        } krs;
-
-        struct {
-            Edge *edges;
-            unsigned availableEdges;
-        } prm;
     };
+    Stack<Sitem> m_stack;
 
-    typedef GENERATOR_INIT_FUNC((*InitFunc));
-    GENERATOR_INIT_FUNC(InitRandom);
-    GENERATOR_INIT_FUNC(InitRandomizedDFS);
-    GENERATOR_INIT_FUNC(InitRecursiveDivision);
-    GENERATOR_INIT_FUNC(InitRandomizedKruskal);
-    GENERATOR_INIT_FUNC(InitRandomizedPrim);
+    struct {
+        unsigned nverts = 0, nedges = 0;
+        unsigned *verts = nullptr;
+        Edge     *edges = nullptr;
+        unsigned at = 0;
+    } m_graph;
 
-    typedef GENERATOR_STEP_FUNC((*StepFunc));
-    GENERATOR_INIT_FUNC(StepRandom);
-    GENERATOR_STEP_FUNC(StepRandomizedDFS);
-    GENERATOR_STEP_FUNC(StepRecursiveDivision);
-    GENERATOR_STEP_FUNC(StepRandomizedKruskal);
-    GENERATOR_STEP_FUNC(StepRandomizedPrim);
+    void _reset();
+
+    void _initRandom();
+    void _initRandomizedDFS();
+    void _initRecursiveDivision();
+    void _initRandomizedKruskal();
+    void _initRandomizedPrim();
+
+    bool (Generator::*_step)() = nullptr;
+    bool _stepRandom();
+    bool _stepRandomizedDFS();
+    bool _stepRecursiveDivision();
+    bool _stepRandomizedKruskal();
+    bool _stepRandomizedPrim();
 };

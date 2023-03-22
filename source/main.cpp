@@ -1,6 +1,4 @@
-#include "grid.hpp"
-#include "stack.hpp"
-#include "queue.hpp"
+#include "maze.hpp"
 #include "solver.hpp"
 #include "generator.hpp"
 #include "application.hpp"
@@ -17,50 +15,36 @@ public:
     }
 
 private:
-    enum {
-        Generating,
-        Solving,
-        Idle,
-    } m_state = Idle;
+    struct State {
+        enum Enum {
+            Generating,
+            Solving,
+            Idle,
+        } state = Idle;
 
-    struct {
-        int  scale = 5;
-        int  stepsPerSecond = 32;
-        bool instant = false;
-    } m_settings;
+        int  scale     = 5;
+        bool animate   = true;
+        int  heuristic = 0;
 
-    struct {
-        Stack<Generator::State> stack;
-        Generator::StepFunc step = nullptr;
-        const char *name;
-    } m_generator;
+        float time = 0;
+        float step = 1;
+        std::chrono::high_resolution_clock clock;
+        std::chrono::high_resolution_clock::time_point then;
+    } m_state;
 
-    struct {
-        Stack<Solver::State> stack;
-        Queue<Solver::Qitem> queue;
-        Solver::StepFunc step = nullptr;
-        const char *name;
-    } m_solver;
-
-    void (MazeApp::*m_updateFunc)() = &MazeApp::UpdateIdle;
+    Generator m_generator;
+    Solver m_solver;
 
     static constexpr unsigned DEF_W = 125;
     static constexpr unsigned DEF_H = 125;
 
-    Grid m_grid = Grid(DEF_W, DEF_H);
-    SDL_Texture *m_gridTexture;
-
-    unsigned m_oldW = DEF_W;
-    unsigned m_oldH = DEF_H;
-
-    float m_accumTime = 0;
-    std::chrono::high_resolution_clock m_clock;
-    std::chrono::high_resolution_clock::time_point m_then;
+    Maze m_maze = Maze(DEF_W, DEF_H);
+    SDL_Texture *m_mazeTexture = nullptr;
 
     bool OnInit() override
     {
-        m_gridTexture = SDL_CreateTexture(m_renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, m_grid.hcells, m_grid.vcells);
-        bool ok = m_gridTexture != NULL;
+        m_mazeTexture = SDL_CreateTexture(m_renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, m_maze.hcells, m_maze.vcells);
+        bool ok = m_mazeTexture != NULL;
         if (ok) RenderMaze();
 
         return ok;
@@ -68,125 +52,120 @@ private:
 
     void OnUpdate() override
     {
-        ImGui::Begin("Maze", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+        ImGui::ShowDemoWindow();
+        ImGui::Begin("Maze");
 
         {
-            m_state == Generating ? ImGui::Text("State: Generating (%s)", m_generator.name) :
-            m_state == Solving    ? ImGui::Text("State: Solving (%s)", m_solver.name) :
-                                    ImGui::Text("State: Idle");
+            ImGui::Checkbox("Animate", &m_state.animate);
+            if (m_state.animate)
+                ImGui::SliderFloat("Time Per Step(ms)", &m_state.step, 1, 1000);
 
-            ImGui::Checkbox("Instant", &m_settings.instant);
-            ImGui::SameLine();
-
-            ImVec2 v = {ImGui::GetContentRegionAvail().x, 0};
-
-            if (ImGui::Button("Finish", v) && m_state != Idle) {
-                if (m_state == Generating)
-                    while (!m_generator.stack.IsEmpty())
-                        m_generator.step(m_grid, m_generator.stack);
+            if (!m_state.animate && m_state.state != State::Idle) {
+                if (m_state.state == State::Generating)
+                    while (m_generator.Step());
                 else
-                    while (!m_solver.stack.IsEmpty())
-                        m_solver.step(m_grid, m_solver.stack, m_solver.queue);
+                    while (m_solver.Step());
 
-                m_state = Idle;
-                m_updateFunc = &MazeApp::UpdateIdle;
+                SwitchState(State::Idle);
                 RenderMaze();
             }
-
-            ImGui::SliderInt("Steps per Second", &m_settings.stepsPerSecond, 1, 512);
         }
 
         ImGui::NewLine();
 
         if (ImGui::CollapsingHeader("Generators"))
         {
-            using namespace Generator;
-
-            static auto GeneratorItem = [this](const char *n, InitFunc init, StepFunc step) {
-                if (!ImGui::Button(n, ImVec2(ImGui::GetContentRegionAvail().x, 0)) || m_state != Idle)
+            static auto GeneratorItem = [this](const char *n, Generator::Type type) {
+                bool btn = ImGui::Button(n, ImVec2(ImGui::GetContentRegionAvail().x, 0));
+                if (!btn || m_state.state != State::Idle)
                     return;
-
-                m_accumTime = 0;
-                m_then = m_clock.now();
-
-                m_generator.name = n;
-                m_generator.stack.Clear();
-                init(m_grid, m_generator.stack);
-
-                if (m_settings.instant) {
-                    while (!m_generator.stack.IsEmpty())
-                        step(m_grid, m_generator.stack);
-                    RenderMaze();
-                } else {
-                    m_state = Generating;
-                    m_updateFunc = &MazeApp::UpdateGenerating;
-                    m_generator.step = step;
-                }
+                m_generator.Init(&m_maze, type);
+                SwitchState(State::Generating);
             };
 
-            GeneratorItem("Random"            , InitRandom           , StepRandom           );
-            GeneratorItem("Randomized DFS"    , InitRandomizedDFS    , StepRandomizedDFS    );
-            GeneratorItem("Recursive Division", InitRecursiveDivision, StepRecursiveDivision);
-            GeneratorItem("Randomized Kruskal", InitRandomizedKruskal, StepRandomizedKruskal);
-            GeneratorItem("Randomized Prim"   , InitRandomizedPrim   , StepRandomizedPrim   );
+            GeneratorItem("Random"            , Generator::Type::Random           );
+            GeneratorItem("Randomized DFS"    , Generator::Type::RandomizedDFS    );
+            GeneratorItem("Recursive Division", Generator::Type::RecursiveDivision);
+            GeneratorItem("Randomized Kruskal", Generator::Type::RandomizedKruskal);
+            GeneratorItem("Randomized Prim"   , Generator::Type::RandomizedPrim   );
         }
 
         ImGui::NewLine();
 
         if (ImGui::CollapsingHeader("Solvers"))
         {
-            using namespace Solver;
-
-            static auto SolverItem = [this](const char *n, InitFunc init, StepFunc step) {
-                if (!ImGui::Button(n, ImVec2(ImGui::GetContentRegionAvail().x, 0)) || m_state != Idle)
-                    return;
-
-                m_accumTime = 0;
-                m_then = m_clock.now();
-
-                m_grid.ClearPaths();
-                m_solver.name = n;
-                m_solver.stack.Clear();
-                m_solver.queue.Clear();
-                init(m_grid, m_solver.stack, m_solver.queue);
-
-                if (m_settings.instant) {
-                    while (!m_solver.stack.IsEmpty())
-                        step(m_grid, m_solver.stack, m_solver.queue);
-                    RenderMaze();
-                } else {
-                    m_state = Solving;
-                    m_updateFunc = &MazeApp::UpdateSolving;
-                    m_solver.step = step;
-                }
+            const char *heuristicNames[] = {
+                "None",
+                "Manhattan",
+                "Euclidean"
             };
 
-            SolverItem("Depth First Search"           , InitDFS            , StepDFS     );
-            SolverItem("Breadth First Search"         , InitBFS            , StepBFS     );
-            SolverItem("Dijkstra"                     , InitDijkstra       , StepDijkstra);
-            SolverItem("A* (Euclidean)"               , InitAStarEuclidean , StepAStar   );
-            SolverItem("A* (Manhattan)"               , InitAStarManhattan , StepAStar   );
-            SolverItem("Greedy Best First (Euclidean)", InitGreedyEuclidean, StepGreedy  );
-            SolverItem("Greedy Best First (Manhattan)", InitGreedyManhattan, StepGreedy  );
+            Solver::Heuristic heuristicFuncs[] = {
+                [](int x0, int y0, int x1, int y1) -> float {
+                    (void)x0, (void)y0, (void)x1, (void)y1;
+                    return 0;
+                },
+
+                [](int x0, int y0, int x1, int y1) -> float {
+                    return abs(x1 - x0) + abs(y1 - y0);
+                },
+
+                [](int x0, int y0, int x1, int y1) -> float {
+                    return sqrtf((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0));
+                },
+            };
+
+            ImGui::Combo("Heuristic", &m_state.heuristic, heuristicNames, 3);
+
+            static auto SolverItem = [this, &heuristicFuncs](const char *n, Solver::Type t) {
+                bool btn = ImGui::Button(n, ImVec2(ImGui::GetContentRegionAvail().x, 0));
+                if (!btn || m_state.state != State::Idle)
+                    return;
+                m_maze.ClearPaths();
+                m_solver.Init(&m_maze, t, heuristicFuncs[m_state.heuristic]);
+                SwitchState(State::Solving);
+            };
+
+            SolverItem("Depth First Search"  , Solver::Type::DepthFirst     );
+            SolverItem("Breadth First Search", Solver::Type::BreadthFirst   );
+            SolverItem("Dijkstra"            , Solver::Type::Dijkstra       );
+            SolverItem("A*"                  , Solver::Type::AStar          );
+            SolverItem("Greedy Best First"   , Solver::Type::GreedyBestFirst);
         }
 
         ImGui::End();
 
+        if (m_state.state != State::Idle) {
+            auto now = m_state.clock.now();
+            std::chrono::duration<float, std::milli> d = now - m_state.then;
+            m_state.time += d.count();
+            m_state.then = now;
 
-        (this->*m_updateFunc)();
+            bool resume = true;
+            if (m_state.state == State::Generating)
+                for (; m_state.time > 0 && resume; m_state.time -= m_state.step)
+                    resume = m_generator.Step();
+            else
+                for (; m_state.time > 0 && resume; m_state.time -= m_state.step)
+                    resume = m_solver.StepAndTrace();
+
+            if (!resume)
+                SwitchState(State::Idle);
+
+            RenderMaze();
+        }
     }
 
     void OnRender() override
     {
-        SDL_Rect src = { 0, 0, static_cast<int>(m_grid.hcells), static_cast<int>(m_grid.vcells) };
-        SDL_Rect dst = { 0, 0, static_cast<int>(m_grid.hcells) * m_settings.scale, static_cast<int>(m_grid.vcells) * m_settings.scale };
+        SDL_Rect src = { 0, 0, (int)(m_maze.hcells), (int)(m_maze.vcells) };
+        SDL_Rect dst = { 0, 0, (int)(m_maze.hcells) * m_state.scale, (int)(m_maze.vcells) * m_state.scale };
 
         int w, h;
         SDL_GetWindowSize(m_window, &w, &h);
         dst.x = (w - dst.w) / 2;
         dst.y = (h - dst.h) / 2;
-
-        SDL_RenderCopy(m_renderer, m_gridTexture, &src, &dst);
+        SDL_RenderCopy(m_renderer, m_mazeTexture, &src, &dst);
 
         dst.x -= 4;
         dst.y -= 4;
@@ -196,58 +175,25 @@ private:
         SDL_RenderDrawRect(m_renderer, &dst);
     }
 
+    void SwitchState(State::Enum state)
+    {
+        m_state.state = (State::Enum)state;
+        m_state.time  = 0;
+        m_state.then  = m_state.clock.now();
+    }
+
     void RenderMaze()
     {
-        SDL_SetRenderTarget(m_renderer, m_gridTexture);
-        m_grid.Render(m_renderer);
+        SDL_SetRenderTarget(m_renderer, m_mazeTexture);
+        m_maze.Render(m_renderer);
         SDL_SetRenderTarget(m_renderer, nullptr);
-    }
-
-    void UpdateGenerating()
-    {
-        auto now = m_clock.now();
-        std::chrono::duration<float, std::ratio<1, 1>> d = now - m_then;
-        m_accumTime += d.count();
-
-        float stepTime = 1.0f / m_settings.stepsPerSecond;
-        for (; m_accumTime > 0 && !m_generator.stack.IsEmpty(); m_accumTime -= stepTime)
-            m_generator.step(m_grid, m_generator.stack);
-
-        if (m_generator.stack.IsEmpty()) {
-            m_state = Idle;
-            m_updateFunc = &MazeApp::UpdateIdle;
-        }
-
-        RenderMaze();
-        m_then = now;
-    }
-
-    void UpdateSolving()
-    {
-        auto now = m_clock.now();
-        std::chrono::duration<float, std::ratio<1, 1>> d = now - m_then;
-        m_accumTime += d.count();
-
-        float stepTime = 1.0f / m_settings.stepsPerSecond;
-        for (; m_accumTime > 0 && !m_solver.stack.IsEmpty(); m_accumTime -= stepTime)
-            m_solver.step(m_grid, m_solver.stack, m_solver.queue);
-
-        if (m_solver.stack.IsEmpty()) {
-            m_state = Idle;
-            m_updateFunc = &MazeApp::UpdateIdle;
-        }
-
-        RenderMaze();
-        m_then = now;
-    }
-
-    void UpdateIdle()
-    {
     }
 };
 
 int main(int argc, char **argv)
 {
+    (void) argc, (void)argv;
+
     MazeApp app;
     if (app.Init())
         app.Run();
