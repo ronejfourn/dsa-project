@@ -12,7 +12,11 @@ void Solver::Init(Maze *maze, Type type, Heuristic h)
 {
     _reset();
     m_maze = maze;
-    m_end = { (int)(maze->hcells - 1), (int)(maze->vcells - 1) };
+    m_start  = { maze->start.x, maze->start.y };
+    m_end    = { maze->end  .x, maze->end  .y };
+    m_active = { maze->start.x, maze->start.y };
+    pathLength = 0;
+    vertsExpanded = 0;
     m_vertices = new VertexData[maze->hcells * maze->vcells];
     _heuristic = h;
 
@@ -29,15 +33,18 @@ void Solver::Init(Maze *maze, Type type, Heuristic h)
 
 void Solver::_trace(unsigned t)
 {
+    pathLength = 0;
     int x = m_active.x, y = m_active.y;
     (*m_maze)(x, y) = t;
-    while (y != 0 || x != 0) {
+    while (y != m_start.y || x != m_start.x) {
         switch (m_vertices[y * m_maze->hcells + x].dir) {
             case L: x ++; break;
             case R: x --; break;
             case B: y ++; break;
             case T: y --; break;
+            default: x = m_start.x, y = m_start.y; break;
         }
+        pathLength ++;
         (*m_maze)(x, y) = t;
     }
 }
@@ -69,8 +76,6 @@ void Solver::_reset()
 {
     m_maze = nullptr;
     m_finished = false;
-    m_pathLength = 0;
-    m_vertsVisited = 0;
     m_active = {0, 0};
     delete [] m_vertices;
     m_vertices = nullptr;
@@ -89,8 +94,11 @@ bool Solver::_isEnd(int x, int y)
 
 void Solver::_initDepthFirst()
 {
-    m_stack.Push({});
-    (*m_maze)(0, 0) = ACTIVE;
+    int x = m_start.x;
+    int y = m_start.y;
+    Sitem s = {x, y};
+    m_stack.Push(s);
+    (*m_maze)(x, y) = ACTIVE;
 }
 
 bool Solver::_stepDepthFirst()
@@ -98,40 +106,25 @@ bool Solver::_stepDepthFirst()
     if (m_stack.IsEmpty())
         return false;
 
-    auto &i = m_stack.Peek();
+    auto i = m_stack.Pop();
     m_active = {i.x, i.y};
+    vertsExpanded ++;
     if (_isEnd(i.x, i.y))
         return false;
 
-    bool next = false;
-    Sitem nstate = {};
-
-    auto setnext = [this, &i, &nstate](int x, int y, unsigned char dir) -> bool {
+    auto push = [this](int x, int y, unsigned char dir) {
         if (!m_maze->PointInBounds(x, y) || (*m_maze)(x, y) != PATH)
-            return false;
-
+            return;
         m_vertices[y * m_maze->hcells + x].dir = dir;
-        nstate.x = x;
-        nstate.y = y;
-        return true;
+        m_stack.Push({x, y});
+        (*m_maze)(x, y) = ACTIVE;
     };
 
-    while (!next && i.dir < 4) {
-        switch (i.dir++) {
-            case L: next = setnext(i.x - 1, i.y, L); break;
-            case R: next = setnext(i.x + 1, i.y, R); break;
-            case B: next = setnext(i.x, i.y - 1, B); break;
-            case T: next = setnext(i.x, i.y + 1, T); break;
-        }
-    }
-
-    if (next) {
-        (*m_maze)(nstate.x, nstate.y) = ACTIVE;
-        m_stack.Push(nstate);
-    } else {
-        (*m_maze)(i.x, i.y) = DEAD;
-        m_stack.Pop();
-    }
+    (*m_maze)(i.x, i.y) = DEAD;
+    push(i.x - 1, i.y, L);
+    push(i.x + 1, i.y, R);
+    push(i.x, i.y - 1, B);
+    push(i.x, i.y + 1, T);
     return true;
 }
 
@@ -141,8 +134,11 @@ bool Solver::_stepDepthFirst()
 
 void Solver::_initBreadthFirst()
 {
-    (*m_maze)(0, 0) = ACTIVE;
-    m_queue.Enqueue({});
+    int x = m_start.x;
+    int y = m_start.y;
+    Qitem q = {x, y, 0};
+    m_queue.Enqueue(q);
+    (*m_maze)(x, y) = ACTIVE;
 }
 
 bool Solver::_stepBreadthFirst()
@@ -151,6 +147,7 @@ bool Solver::_stepBreadthFirst()
         return false;
 
     auto i = m_queue.Dequeue();
+    vertsExpanded ++;
     m_active = {i.x, i.y};
     if (_isEnd(i.x, i.y))
         return false;
@@ -160,11 +157,9 @@ bool Solver::_stepBreadthFirst()
             return;
 
         m_vertices[y * m_maze->hcells + x].dir = dir;
-        Qitem q = {};
-        q.x = x;
-        q.y = y;
-        (*m_maze)(x, y) = ACTIVE;
+        Qitem q = {x, y, 0};
         m_queue.Enqueue(q);
+        (*m_maze)(x, y) = ACTIVE;
     };
 
     (*m_maze)(i.x, i.y) = DEAD;
@@ -181,12 +176,12 @@ bool Solver::_stepBreadthFirst()
 
 void Solver::_initDijkstra()
 {
-    m_vertices[0].gval = 0;
-    (*m_maze)(0, 0) = ACTIVE;
+    int x = m_start.x;
+    int y = m_start.y;
+    m_vertices[y * m_maze->hcells + x].gval = 0;
+    (*m_maze)(x, y) = ACTIVE;
 
-    Qitem q = {};
-    q.v = m_vertices;
-    q.v->inQueue = true;
+    Qitem q = {x, y, m_vertices};
     m_queue.Enqueue(q);
 
     m_queue.SetCompareFunc([](auto a, auto b) -> bool {
@@ -200,7 +195,7 @@ bool Solver::_stepDijkstra()
         return false;
 
     auto i = m_queue.PriorityDequeue();
-    i.v->inQueue = false;
+    vertsExpanded ++;
     m_active = {i.x, i.y};
     if (_isEnd(i.x, i.y))
         return false;
@@ -211,21 +206,16 @@ bool Solver::_stepDijkstra()
             return;
 
         auto &vert = m_vertices[y * m_maze->hcells + x];
-        if (vert.gval != -1 && vert.gval <= gval)
-            return;
+        if (vert.gval == -1 || vert.gval > gval) {
+            vert.gval = gval;
+            vert.dir  = dir;
+        }
 
-        vert.gval = gval;
-        vert.dir  = dir;
-        if (vert.inQueue)
-            return;
-
-        vert.inQueue = true;
-        Qitem q = {};
-        q.x = x;
-        q.y = y;
-        q.v = &vert;
-        (*m_maze)(q.x, q.y) = ACTIVE;
-        m_queue.Enqueue(q);
+        if ((*m_maze)(x, y) == PATH) {
+            (*m_maze)(x, y) = ACTIVE;
+            Qitem q = {x, y, &vert};
+            m_queue.Enqueue(q);
+        }
     };
 
     (*m_maze)(i.x, i.y) = DEAD;
@@ -242,11 +232,12 @@ bool Solver::_stepDijkstra()
 
 void Solver::_initGreedyBestFirst()
 {
-    m_vertices[0].hval = _heuristic(0, 0, m_end.x, m_end.y);
-    (*m_maze)(0, 0) = ACTIVE;
+    int x = m_start.x;
+    int y = m_start.y;
+    m_vertices[y * m_maze->hcells + x].hval = _heuristic(x, y, m_end.x, m_end.y);
+    (*m_maze)(x, y) = ACTIVE;
 
-    Qitem q = {};
-    q.v = m_vertices;
+    Qitem q = {x, y, m_vertices};
     m_queue.Enqueue(q);
 
     m_queue.SetCompareFunc([](auto a, auto b) -> bool {
@@ -260,6 +251,7 @@ bool Solver::_stepGreedyBestFirst()
         return false;
 
     auto i = m_queue.PriorityDequeue();
+    vertsExpanded ++;
     m_active = {i.x, i.y};
     if (_isEnd(i.x, i.y))
         return false;
@@ -272,12 +264,9 @@ bool Solver::_stepGreedyBestFirst()
         m_vertices[i].dir  = dir;
         m_vertices[i].hval = _heuristic(x, y, m_end.x, m_end.y);
 
-        Qitem q = {};
-        q.x = x;
-        q.y = y;
-        q.v = &m_vertices[i];
-        (*m_maze)(x, y) = ACTIVE;
+        Qitem q = {x, y, &m_vertices[i]};
         m_queue.Enqueue(q);
+        (*m_maze)(x, y) = ACTIVE;
     };
 
     (*m_maze)(i.x, i.y) = DEAD;
@@ -294,13 +283,13 @@ bool Solver::_stepGreedyBestFirst()
 
 void Solver::_initAStar()
 {
-    m_vertices[0].gval = 0;
-    m_vertices[0].hval = _heuristic(0, 0, m_end.x, m_end.y);
-    (*m_maze)(0, 0) = ACTIVE;
+    int x = m_start.x;
+    int y = m_start.y;
+    m_vertices[y * m_maze->hcells + x].gval = 0;
+    m_vertices[y * m_maze->hcells + x].hval = _heuristic(x, y, m_end.x, m_end.y);
+    (*m_maze)(x, y) = ACTIVE;
 
-    Qitem q = {};
-    q.v = m_vertices;
-    q.v->inQueue = true;
+    Qitem q = {x, y, m_vertices};
     m_queue.Enqueue(q);
 
     m_queue.SetCompareFunc([](auto a, auto b) -> bool {
@@ -314,7 +303,7 @@ bool Solver::_stepAStar()
         return false;
 
     auto i = m_queue.PriorityDequeue();
-    i.v->inQueue = false;
+    vertsExpanded ++;
     m_active = {i.x, i.y};
     if (_isEnd(i.x, i.y))
         return false;
@@ -325,22 +314,17 @@ bool Solver::_stepAStar()
             return;
 
         auto &vert = m_vertices[y * m_maze->hcells + x];
-        if (vert.gval != -1 && vert.gval <= gval)
-            return;
+        if (vert.gval == -1 || vert.gval > gval) {
+            vert.gval = gval;
+            vert.dir  = dir;
+        }
 
-        vert.gval = gval;
-        vert.dir  = dir;
-        vert.hval = _heuristic(x, y, m_end.x, m_end.y);
-        if (vert.inQueue)
-            return;
-
-        vert.inQueue = true;
-        Qitem q = {};
-        q.x = x;
-        q.y = y;
-        q.v = &vert;
-        (*m_maze)(x, y) = ACTIVE;
-        m_queue.Enqueue(q);
+        if ((*m_maze)(x, y) == PATH) {
+            vert.hval = _heuristic(x, y, m_end.x, m_end.y);
+            Qitem q = {x, y, &vert};
+            m_queue.Enqueue(q);
+            (*m_maze)(x, y) = ACTIVE;
+        }
     };
 
     (*m_maze)(i.x, i.y) = DEAD;

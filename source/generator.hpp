@@ -29,8 +29,7 @@ private:
 
     union Sitem {
         struct {
-            int x, y;
-            int at;
+            int x, y, at;
             int choice[4];
         } dfs;
 

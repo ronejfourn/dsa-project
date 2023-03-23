@@ -3,11 +3,8 @@
 #include <climits>
 
 enum CellState : unsigned {
-
-    _MAX = 360,
-
-    PATH = UINT_MAX - 1,
-    WALL = UINT_MAX - 0,
+    PATH = 0xfbf1c7,
+    WALL = 0x1d2021,
 };
 
 struct SDL_Renderer;
@@ -16,13 +13,15 @@ struct Maze {
     unsigned hcells = 0;
     unsigned vcells = 0;
     unsigned *cells = nullptr;
+    struct { int x, y; } start = {0, 0};
+    struct { int x, y; } end   = {0, 0};
 
      Maze() {}
      Maze(unsigned h, unsigned v);
     ~Maze();
 
-    void Render(SDL_Renderer *);
     void Fill(unsigned);
+    void Resize(unsigned h, unsigned v);
     void ClearPaths();
     bool PointInBounds(int x, int y);
     unsigned &operator() (int x, int y);

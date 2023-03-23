@@ -26,6 +26,8 @@ bool Generator::Step()
     if ((this->*_step)()) {
         return true;
     } else {
+        (*m_maze)(m_maze->start.x, m_maze->start.y) = PATH;
+        (*m_maze)(m_maze->end  .x, m_maze->end  .y) = PATH;
         _reset();
         return false;
     }
@@ -56,9 +58,6 @@ bool Generator::_stepRandom()
     unsigned m = m_maze->hcells * m_maze->vcells - 1;
     for (unsigned i = 0; i <= m; i ++)
         m_maze->cells[i] = (RNG::Get() & 3) == 0 ? WALL : PATH;
-
-    m_maze->cells[0] = PATH;
-    m_maze->cells[m] = PATH;
     return false;
 }
 
@@ -71,6 +70,8 @@ void Generator::_initRandomizedDFS()
     m_maze->Fill(WALL);
 
     Sitem s = {};
+    s.dfs.x = m_maze->start.x;
+    s.dfs.y = m_maze->start.y;
     s.dfs.choice[0] = L;
     s.dfs.choice[1] = R;
     s.dfs.choice[2] = B;
@@ -235,17 +236,11 @@ void Generator::_initRandomizedKruskal()
 
 bool Generator::_stepRandomizedKruskal()
 {
-    if (m_graph.at >= m_graph.nedges)
-        return false;
-
     auto hhcells = m_maze->hcells >> 1;
-    auto e  = m_graph.edges[m_graph.at ++];
-    auto v0 = (e.y0 / 2) * (hhcells + 1) + (e.x0 / 2);
-    auto v1 = (e.y1 / 2) * (hhcells + 1) + (e.x1 / 2);
-    auto f0 = m_graph.verts[v0];
-    auto f1 = m_graph.verts[v1];
+    Edge e;
+    unsigned v0, v1, f0, f1;
 
-    while (f0 == f1) {
+    do {
         if (m_graph.at >= m_graph.nedges)
             return false;
 
@@ -254,7 +249,7 @@ bool Generator::_stepRandomizedKruskal()
         v1 = (e.y1 / 2) * (hhcells + 1) + (e.x1 / 2);
         f0 = m_graph.verts[v0];
         f1 = m_graph.verts[v1];
-    }
+    } while (f0 == f1);
 
     for (unsigned i = 0; i < m_graph.nverts; i++)
         if (m_graph.verts[i] == f1)
@@ -278,31 +273,40 @@ void Generator::_initRandomizedPrim()
     auto hvcells = m_maze->vcells >> 1;
     m_graph.edges = new Edge[hvcells * hhcells * 2 + hhcells + hvcells];
 
-    (*m_maze)(0, 0) = PATH;
-    m_graph.at = 2;
-    m_graph.edges[0] = {0, 0, 2, 0};
-    m_graph.edges[1] = {0, 0, 0, 2};
+    auto x = m_maze->start.x;
+    auto y = m_maze->start.y;
+
+    m_graph.at = 0;
+    auto addEdge = [this, x, y](int dx, int dy) {
+        auto x2 = x + dx;
+        auto y2 = y + dy;
+        if (m_maze->PointInBounds(x2, y2)) {
+            Edge n = { x, y, x2, y2 };
+            m_graph.edges[m_graph.at ++] = n;
+        }
+    };
+
+    addEdge( 0,  2);
+    addEdge( 0, -2);
+    addEdge( 2,  0);
+    addEdge(-2,  0);
+
+    (*m_maze)(x, y) = PATH;
 }
 
 bool Generator::_stepRandomizedPrim()
 {
-    if (m_graph.at == 0)
-        return false;
-
-    auto i = RNG::Get() % (m_graph.at --);
-    auto e = m_graph.edges[i];
-    m_graph.edges[i] = m_graph.edges[m_graph.at];
-
-    while ((*m_maze)(e.x1, e.y1) == PATH) {
+    Edge e;
+    do {
         if (m_graph.at == 0)
             return false;
 
-        i = RNG::Get() % (m_graph.at --);
+        auto i = RNG::Get() % (m_graph.at --);
         e = m_graph.edges[i];
         m_graph.edges[i] = m_graph.edges[m_graph.at];
-    }
+    } while ((*m_maze)(e.x1, e.y1) == PATH);
 
-    auto xm = e.x0 + (e.x1 - e.x0) / 2, ym = e.y0 + (e.y1 - e.y0) / 2;
+    auto xm = (e.x0 + e.x1) / 2, ym = (e.y0 + e.y1) / 2;
     (*m_maze)(e.x1, e.y1) = PATH;
     (*m_maze)(  xm,   ym) = PATH;
 

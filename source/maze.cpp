@@ -8,7 +8,10 @@ bool Maze::PointInBounds(int x, int y) {
 }
 
 unsigned &Maze::operator() (int x, int y) {
-    assert(PointInBounds(x, y));
+    if (!PointInBounds(x, y)) {
+        printf("%d %d\n", x, y);
+        assert(PointInBounds(x, y));
+    }
     return cells[y * hcells + x];
 };
 
@@ -23,26 +26,19 @@ void Maze::ClearPaths() {
 }
 
 Maze::Maze(unsigned h, unsigned v) {
+    cells = nullptr;
+    Resize(h, v);
+}
+
+void Maze::Resize(unsigned h, unsigned v) {
+    start.x = 0, start.y = 0;
+    end.x = h - 1, end.y = v - 1;
     hcells = h, vcells = v;
+    delete[] cells;
     cells = new unsigned[hcells * vcells];
     Fill(PATH);
 }
 
 Maze::~Maze() {
     delete []cells;
-}
-
-void Maze::Render(SDL_Renderer *r) {
-    for (unsigned y = 0; y < vcells; y++) {
-        auto b = y * hcells;
-        for (unsigned x = 0; x < hcells; x++) {
-            auto t = cells[b + x];
-
-            (t == PATH) ? SDL_SetRenderDrawColor(r, 0xfb, 0xf1, 0xc7, 0x00) :
-            (t == WALL) ? SDL_SetRenderDrawColor(r, 0x1d, 0x20, 0x21, 0x00) :
-            SDL_SetRenderDrawColor(r, (t >> 16) & 0xff, (t >> 8) & 0xff, (t >> 0) & 0xff, 0x00);
-
-            SDL_RenderDrawPoint(r, x, y);
-        }
-    }
 }

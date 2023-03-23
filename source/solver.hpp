@@ -24,15 +24,16 @@ public:
     bool Step();
     bool StepAndTrace();
 
+    unsigned pathLength = 0;
+    unsigned vertsExpanded = 0;
+
 private:
     Maze *m_maze;
     bool m_finished = false;
 
     struct { int x, y; } m_end;
+    struct { int x, y; } m_start;
     struct { int x, y; } m_active;
-
-    unsigned m_pathLength = 0;
-    unsigned m_vertsVisited = 0;
 
     Heuristic _heuristic = nullptr;
 
@@ -42,13 +43,11 @@ private:
         float gval = -1;
         float hval = -1;
         unsigned char dir = 0;
-        bool inQueue = false;
     };
     VertexData *m_vertices = nullptr;
 
     struct Sitem {
         int x, y;
-        unsigned char dir;
     };
 
     struct Qitem {
